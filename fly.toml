@@ -1,16 +1,17 @@
-# NEXORA-MD on Fly.io — always-on WhatsApp bot
+# NEXORA Telegram on Fly.io — always-on WhatsApp + Telegram control panel
 #
 # Prereqs (one-time, before first deploy):
 #   fly launch --no-deploy        # creates the app, uses this file
 #   fly volumes create nexora_session --size 1
 #   fly volumes create nexora_database --size 1
 #   fly secrets set OWNER_NUMBERS=... OWNER_NAME=... PAIRING_ENABLED=true \
-#                 PAIRING_PHONE=... NEXORA_RICH_RESPONSE=1
+#                 PAIRING_PHONE=... NEXORA_RICH_RESPONSE=1 \
+                TELEGRAM_BOT_TOKEN=... TELEGRAM_OWNER_ID=...
 #   fly deploy
 #
 # NOTE: the bot must never sleep — auto_stop_machines is false.
 
-app = "nexora-md"
+app = "nexora-telegram"
 primary_region = "lhr"
 
 [build]
