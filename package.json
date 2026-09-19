@@ -1,0 +1,49 @@
+{
+  "name": "nexora-md-telegram",
+  "description": "Next Generation WhatsApp Multi Device Framework",
+  "author": "Aizen",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "postinstall": "node scripts/patch-libsignal.js",
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "build": "echo 'No build required for Nexora MD'",
+    "clean": "rm -rf dist session",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix"
+  },
+  "dependencies": {
+    "@google/genai": "^2.4.0",
+    "baileys": "github:boyde1317-byte/baileys#v0.3.18-r6",
+    "chalk": "^5.4.1",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.1.0",
+    "libphonenumber-js": "^1.13.13",
+    "node-telegram-bot-api": "^0.66.0",
+    "linkifyjs": "^4.2.0",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0",
+    "sharp": "^0.35.3",
+    "uuid": "^14.0.1",
+    "wa-sticker-formatter": "^4.4.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2"
+  },
+  "overrides": {
+    "axios": "^1.7.0",
+    "sharp": "^0.35.3"
+  }
+}
