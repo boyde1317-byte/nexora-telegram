@@ -9,6 +9,7 @@ import { richTableCard } from '../../lib/interactiveKit.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
 import { getLevelProgress, progressBar, rankBadge, streakEmoji } from '../../economy/leveling.js';
 import { buildEnrichedContextInfo } from '../../lib/enrichContext.js';
+import { resolveDisplayIdentity } from '../../lib/identity.js';
 
 export default {
   name: 'profile',
@@ -26,8 +27,9 @@ export default {
       targetJid = m.msg.contextInfo.mentionedJid[0];
     }
 
-    const number = targetJid.split('@')[0].split(':')[0];
     const isSelf = targetJid === m.sender;
+    // LID-safe identity: real phone number + wa.me username, never raw JID/LID digits
+    const { number, username, label } = await resolveDisplayIdentity(sock, targetJid);
 
     await withReactionStatus(m, async () => {
       const d = db.getUser(targetJid);
@@ -48,7 +50,7 @@ export default {
       let ppUrl = null;
       try { ppUrl = await sock.profilePictureUrl(targetJid, 'image'); } catch (_) {}
 
-      const title = isSelf ? '👤 YOUR PROFILE' : `👤 PROFILE — +${number}`;
+      const title = isSelf ? '👤 YOUR PROFILE' : `👤 PROFILE — ${label}`;
 
       // ── Tier 1: profile picture + richTableCard — single content pair ──
       try {
@@ -59,7 +61,7 @@ export default {
             const buffer = Buffer.from(await res.arrayBuffer());
             await sock.sendMessage(m.from, {
               image:   buffer,
-              caption: `👤 *+${number}*\n${badge}  Level ${level}  •  ${fire} ${streak}-day streak`,
+              caption: `👤 *${label}*\n${badge}  Level ${level}  •  ${fire} ${streak}-day streak`,
             }, { quoted: m });
           }
         }
@@ -74,7 +76,8 @@ export default {
           title,
           headers: ['Field', 'Value'],
           rows: [
-            ['Number',     `+${number}`],
+            ['Number',     number ? `+${number}` : '❓ unavailable (LID)'],
+            ...(username ? [['Username', `@${username}`]] : []),
             ...(d.title ? [['Title', d.title]] : []),
             ['Rank',       badge],
             ['Level',      String(level)],
@@ -86,7 +89,7 @@ export default {
             ['Last Claim', lastDaily],
             ...extraRows,
           ],
-          footer: `${isSelf ? 'Your stats' : `Stats for +${number}`} • NEXORA Profile`,
+          footer: `${isSelf ? 'Your stats' : `Stats for ${label}`} • NEXORA Profile`,
         }, { quoted: ppUrl ? undefined : m });
       } catch (err) {
         console.warn('[profile] Tier 1 (richTableCard) failed:', err.message);
@@ -94,7 +97,7 @@ export default {
 
       // ── Tier 2: plain image + asciiBuilder fallback ──────────────────────
       const lines = [
-        `📱 Number   : +${number}`,
+        `📱 Number   : ${number ? '+' + number : 'unavailable (LID)'}`,
         ...(d.title ? [`🏷️  Title    : ${d.title}`] : []),
         `🏅 Rank     : ${badge}`,
         ``,
