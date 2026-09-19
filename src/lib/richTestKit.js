@@ -15,6 +15,7 @@ import {
   generateWAMessageFromContent,
 } from 'baileys';
 import { AIRich } from './NIXCODE.js';
+import { renderLatexToPngSvg } from './latexRenderer.js';
 
 // ── V1 + V2 generators (imported from the fork's rich-message-utils.js) ─────
 import {
@@ -957,8 +958,8 @@ export async function testV1LatexImage(sock, jid, quoted) {
         { latexExpression: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },
       ],
       headerText: 'LaTeX Image Rendering',
-      footer: 'NEXORA-MD • mathjax-node default renderer',
-    }, uploadFn);
+      footer: 'NEXORA-MD • SVG renderer (mathjax-node + sharp, no Java)',
+    }, uploadFn, renderLatexToPngSvg);
     await _relayGenerated(sock, jid, generated, { quoted });
     return 'V1 latex image ✓';
   } catch (err) {
@@ -993,8 +994,8 @@ export async function testV2LatexImage(sock, jid, quoted) {
         { latexExpression: 'e^{i\\pi} + 1 = 0' },
       ],
       headerText: 'LaTeX V2 Image',
-      footer: 'NEXORA-MD • base64 + mathjax-node',
-    }, uploadFn);
+      footer: 'NEXORA-MD • base64 + SVG renderer (no Java)',
+    }, uploadFn, renderLatexToPngSvg);
     await _relayGenerated(sock, jid, generated, { quoted });
     return 'V2 latex image ✓';
   } catch (err) {
