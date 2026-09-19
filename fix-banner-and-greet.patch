@@ -1,0 +1,193 @@
+diff --git a/src/core/baileysBridge.js b/src/core/baileysBridge.js
+index 2b04e4c..9751418 100644
+--- a/src/core/baileysBridge.js
++++ b/src/core/baileysBridge.js
+@@ -331,12 +331,11 @@ export const baileysBridge = {
+     });
+ 
+     // sock.relayMessage only accepts MessageRelayOptions — do not spread `options`
+-    // as it contains `quoted` which is not a valid relay param.
+-    // The fork's relayMessage auto-attaches the biz node via getBizBinaryNode
+-    // when shouldIncludeBizBinaryNode detects buttons/carousel/nativeFlow.
+-    // We no longer pass a static biz node — the fork generates the correct one
+-    // dynamically (with actual button names, bizAttributes, quality_control).
+-    const additionalNodes = options.additionalNodes;
++    // as it contains `quoted` which is not a valid relay param. We DO forward
++    // additionalNodes: callers can override, otherwise button/native-flow/carousel
++    // payloads get the native_flow biz stanza by default (see hasNativeFlowContent).
++    const additionalNodes = options.additionalNodes
++      ?? (hasNativeFlowContent(messageContent) ? NATIVE_FLOW_ADDITIONAL_NODES : undefined);
+     await sock.relayMessage(jid, message.message, {
+       messageId: message.key.id,
+       ...(additionalNodes ? { additionalNodes } : {}),
+@@ -748,7 +747,9 @@ export const baileysBridge = {
+       } : {}),
+     }, {
+       ...options,
+-      // The fork auto-attaches the biz node for buttonsMessage via getBizBinaryNode.
++      // Buttons render unreliably (or not at all) on stock WhatsApp without
++      // this native_flow biz stanza — see NATIVE_FLOW_ADDITIONAL_NODES above.
++      additionalNodes: options.additionalNodes || NATIVE_FLOW_ADDITIONAL_NODES,
+     });
+   },
+ 
+@@ -1071,15 +1072,11 @@ export const baileysBridge = {
+   /**
+    * Sends a buttonsMessage card — the OLD-style WhatsApp button card format.
+    *
+-   * This is the format that produces the distinctive "grey footer text" card
+-   * look (footerText renders in WhatsApp's native grey dim style) with a
+-   * high-quality image in the header and tappable pill buttons at the bottom.
+-   * Uses headerType: 4 (imageMessage) — uploads the thumbnail to WhatsApp's
+-   * media servers so it renders as a proper card image header.
+-   *
+-   * Previously used headerType: 6 (locationMessage) with (0,0) coordinates
+-   * as a hack to embed a jpegThumbnail. That rendered as a broken/incomplete
+-   * location pin on many WhatsApp clients — switched to a real image upload.
++   * This is the format that produces the distinctive "grey body text" card
++   * look (when the body is wrapped in monospace) with a high-quality thumbnail
++   * in the header and tappable pill buttons at the bottom. It uses
++   * headerType: 6 (locationMessage) to embed the thumbnail, which renders
++   * as a card with the image at the top.
+    *
+    * The `biz`/`native_flow` additionalNodes stanza is attached automatically
+    * by relayMessage() (hasNativeFlowContent checks for buttonsMessage).
+@@ -1087,10 +1084,11 @@ export const baileysBridge = {
+    * @param {object} sock
+    * @param {string} jid
+    * @param {object} card
+-   * @param {string} card.body           Card body text (renders as normal foreground text)
+-   * @param {string} [card.footer]       Card footer text (renders in WhatsApp's native grey dim style)
+-   * @param {string} [card.title]        Prepended to body as *bold* heading (no separate header slot with image)
+-   * @param {string} [card.subtitle]     Prepended to body under title
++   * @param {string} card.body           Card body text (wrap in ``` for grey look)
++   * @param {string} [card.footer]       Card footer text
++   * @param {string} [card.title]        Header title (shows as location name)
++   * @param {string} [card.subtitle]     Header subtitle (shows as location address)
++   *                                     — pass time/status here for "time in header" look
+    * @param {*}      [card.thumbnail]    Header image — Buffer, {url}, or fetch-able URL string (uploaded to WA servers)
+    * @param {Array}  [card.buttons]     Old-style buttons:
+    *   { displayText: 'Label', id: '.cmd', type: 1 }                        → quick reply
+@@ -1101,13 +1099,8 @@ export const baileysBridge = {
+   async sendButtonsCard(sock, jid, {
+     body, footer, title, subtitle, thumbnail, buttons, contextInfo,
+   }, options = {}) {
+-    // ── Upload thumbnail to WhatsApp media servers as a real image header ──
+-    // Previously used headerType: 6 (locationMessage) with coordinates (0,0)
+-    // as a hack to embed a jpegThumbnail. That renders as a broken/incomplete
+-    // location pin on many WhatsApp clients. Switched to headerType: 4
+-    // (imageMessage) — uploads the image properly so it renders as a clean
+-    // card image header, no location artifacts.
+-    let imageMessage = null;
++    // ── Fetch + resize thumbnail to 300x300 (like BIGST4CK's NIXCODE builder) ──
++    let jpegThumbnail = null;
+     if (thumbnail) {
+       try {
+         let buf;
+@@ -1123,39 +1116,34 @@ export const baileysBridge = {
+           buf = Buffer.from(thumbnail);
+         }
+         if (buf) {
+-          // Resize to 300x300 for consistent card header sizing
++          // Use sharp if available, otherwise pass raw
+           try {
+             const sharp = (await import('sharp')).default;
+-            buf = await sharp(buf)
++            jpegThumbnail = await sharp(buf)
+               .resize(300, 300, { fit: 'cover', position: 'center' })
+               .jpeg()
+               .toBuffer();
+-          } catch { /* pass raw if sharp unavailable */ }
+-          // Upload to WhatsApp media servers — required for buttonsMessage
+-          // image headers (headerType: 4). A raw buffer without upload
+-          // produces an invalid proto (hasMediaAttachment but no media URL).
+-          imageMessage = await this._uploadImageMessage(sock, jid, { image: buf }, options);
++          } catch {
++            jpegThumbnail = buf;
++          }
+         }
+       } catch (err) {
+-        console.warn('[baileysBridge.sendButtonsCard] Thumbnail upload failed:', err.message);
++        console.warn('[baileysBridge.sendButtonsCard] Thumbnail fetch failed:', err.message);
+       }
+     }
+ 
+-    // title/subtitle were previously stored in locationMessage.name/.address.
+-    // With an image header there's no such slot, so prepend them to body.
+-    let contentText = body || '';
+-    if (title) {
+-      contentText = `*${title}*${subtitle ? `\n${subtitle}` : ''}\n\n${contentText}`.trim();
+-    }
+-
+     const msgContent = {
+       buttonsMessage: {
+-        contentText,
++        contentText:   body || '',
+         footerText:    footer || '',
+-        ...(imageMessage
+-          ? { headerType: 4, imageMessage }
+-          : { headerType: 1 }  // no header if image upload failed
+-        ),
++        headerType:     6,  // location header (renders thumbnail as card image)
++        locationMessage: {
++          degreesLatitude:  0,
++          degreesLongitude: 0,
++          name:             title || '',
++          address:          subtitle || '',
++          ...(jpegThumbnail ? { jpegThumbnail } : {}),
++        },
+         // viewOnce intentionally omitted — buttonsMessage IS the persistent menu card.
+         // Setting viewOnce:true would make it self-destruct after one tap, which
+         // is wrong for a menu. Only use viewOnce on single-use cards (about, result cards).
+diff --git a/src/handlers/group.js b/src/handlers/group.js
+index 503f4bd..c0da192 100644
+--- a/src/handlers/group.js
++++ b/src/handlers/group.js
+@@ -1,40 +1,25 @@
+ import { greetingManager } from '../greetings/greetingManager.js';
+ 
+ /**
+- * Routes group participant events to the canonical greeting pipeline.
++ * Routes group participant events.
+  *
+- * Runtime path (single source of truth):
+- *   group-participants.update
+- *     → handleGroupParticipantsUpdate   (this file — routing only)
+- *     → greetingManager                 (orchestration + milestones + admin alerts)
+- *     → greetingRenderer                (queue, style selection, profile pic, audio)
+- *     → greetingBuilder                 (placeholder expansion)
+- *     → greetingConfig                  (greeting.json — enabled, style, text, image)
++ * The "greet new user" (welcome) feature has been removed — it was
++ * causing spam in groups. Only promote/demote admin alerts remain.
+  *
+- * Toggle commands (.welcome on/off, .goodbye on/off) write to greetingConfig.
+- * greetingRenderer checks greetingConfig.enabled / goodbyeEnabled before sending.
+- *
+- * Admin events (promote / demote) are forwarded to greetingManager so the bot
+- * can send formatted alerts — these were previously unhandled.
++ * Goodbye (handleLeave) is also removed to keep group events quiet.
+  */
+ export async function handleGroupParticipantsUpdate(update, sock) {
+   try {
+     const { id: groupJid, participants, action } = update;
+     if (!groupJid || !participants?.length) return;
+ 
+-    if (action === 'add') {
+-      for (const participant of participants) {
+-        await greetingManager.handleJoin(sock, groupJid, participant);
+-      }
+-    } else if (action === 'remove') {
+-      for (const participant of participants) {
+-        await greetingManager.handleLeave(sock, groupJid, participant);
+-      }
+-    } else if (action === 'promote') {
++    if (action === 'promote') {
+       await greetingManager.handlePromotion(sock, groupJid, participants);
+     } else if (action === 'demote') {
+       await greetingManager.handleDemotion(sock, groupJid, participants);
+     }
++    // 'add' (new user join) and 'remove' (user left) are intentionally
++    // NOT handled — no more welcome/goodbye spam.
+   } catch (err) {
+     console.error('[GROUP] Error in handleGroupParticipantsUpdate:', err.message || err);
+   }

@@ -1,0 +1,12 @@
+{
+  "menuAudio": true,
+  "menuImage": true,
+  "menuThumbnail": true,
+  "autoVoiceNote": false,
+  "menu": {
+    "audio": "./media/audio/menu.mp3",
+    "image": "./media/images/menu/menu_default.jpg",
+    "thumbnail": "./media/thumbnails/default.jpg",
+    "enabled": true
+  }
+}

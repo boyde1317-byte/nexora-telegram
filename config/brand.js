@@ -1,0 +1,15 @@
+export default {
+  name: "NEXORA MD",
+  creator: "Aizen",
+  signature: "By Aizen",
+  version: "2.0.0",
+  description: "Next Generation WhatsApp Multi-Device Framework",
+  copyright: "© NEXORA MD 2.0 - By Aizen",
+  core: "Nexora Core v2",
+  engine: "Nexora Engine v2",
+  ui: "Nexora Flow v2",
+  plugins: "Nexora Modules v2",
+  security: "Nexora Guard v2",
+  ai: "Nexora Intelligence v2",
+  tagline: "Engineered for reliability, extensibility, and a polished user experience.",
+};

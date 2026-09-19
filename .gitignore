@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# WhatsApp session credentials — NEVER commit these
+session/
+backups/
+src/database/db.json.pre-restore
+
+# Telegram runtime admin grants
+database/telegram_admins.json

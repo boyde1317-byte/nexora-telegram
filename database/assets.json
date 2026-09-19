@@ -1,0 +1,26 @@
+{
+  "menu1": {
+    "source": "ai",
+    "path": "./media/images/menu/menu1/menu1_generated.jpg"
+  },
+  "menu2": {
+    "source": "ai",
+    "path": "./media/images/menu/menu2/menu2_generated.jpg"
+  },
+  "menu3": {
+    "source": "ai",
+    "path": "./media/images/menu/menu3/menu3_generated.jpg"
+  },
+  "menu4": {
+    "source": "ai",
+    "path": "./media/images/menu/menu4/menu4_generated.jpg"
+  },
+  "welcome": {
+    "source": "ai",
+    "path": "./media/images/greetings/welcome_generated.jpg"
+  },
+  "goodbye": {
+    "source": "ai",
+    "path": "./media/images/greetings/goodbye_generated.jpg"
+  }
+}

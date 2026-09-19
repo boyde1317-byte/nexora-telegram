@@ -1,0 +1,82 @@
+{
+  "menu": {
+    "style": "1",
+    "mode": "random",
+    "menu1": {
+      "images": [],
+      "currentIndex": 0
+    },
+    "menu2": {
+      "images": [],
+      "currentIndex": 0
+    },
+    "menu3": {
+      "images": [],
+      "currentIndex": 0
+    },
+    "menu4": {
+      "images": [],
+      "currentIndex": 0
+    },
+    "menu5": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/EU3bZjTsl9Q.png"
+      ],
+      "currentIndex": 0
+    },
+    "menu6": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/97PO71tqUe0.png"
+      ],
+      "currentIndex": 0
+    },
+    "menu7": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/elNgJ6KdFTQ.png"
+      ],
+      "currentIndex": 0
+    },
+    "menu8": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/5wshV5OEsO4.jpg"
+      ],
+      "currentIndex": 0
+    },
+    "menu9": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/a7n17FcnR4k.jpg"
+      ],
+      "currentIndex": 0
+    },
+    "menu10": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/mn09c8dwWMo.jpg"
+      ],
+      "currentIndex": 0
+    },
+    "menu11": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/locsMJN_tfQ.jpg"
+      ],
+      "currentIndex": 0
+    },
+    "menu12": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/i_GZthLGKC0.png"
+      ],
+      "currentIndex": 0
+    },
+    "menu13": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/kjxTrcP40uA.jpg"
+      ],
+      "currentIndex": 0
+    },
+    "menu14": {
+      "images": [
+        "https://cdn.nekos.life/wallpaper/nn_nA8wTeP0.png"
+      ],
+      "currentIndex": 0
+    }
+  }
+}

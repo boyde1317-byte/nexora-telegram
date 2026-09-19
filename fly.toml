@@ -1,0 +1,48 @@
+# NEXORA-MD on Fly.io — always-on WhatsApp bot
+#
+# Prereqs (one-time, before first deploy):
+#   fly launch --no-deploy        # creates the app, uses this file
+#   fly volumes create nexora_session --size 1
+#   fly volumes create nexora_database --size 1
+#   fly secrets set OWNER_NUMBERS=... OWNER_NAME=... PAIRING_ENABLED=true \
+#                 PAIRING_PHONE=... NEXORA_RICH_RESPONSE=1
+#   fly deploy
+#
+# NOTE: the bot must never sleep — auto_stop_machines is false.
+
+app = "nexora-md"
+primary_region = "lhr"
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+
+# Auth session — lost volume = re-pairing required
+[[mounts]]
+  source = "nexora_session"
+  destination = "/app/session"
+
+# Bot database (db.json)
+[[mounts]]
+  source = "nexora_database"
+  destination = "/app/src/database"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false   # WhatsApp bot must stay connected
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 50
+    hard_limit = 100
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "15s"
+    method = "GET"
+    path = "/api/health"

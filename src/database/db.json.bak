@@ -1,0 +1,152 @@
+{
+  "users": {
+    "233533416608@s.whatsapp.net": {
+      "jid": "233533416608@s.whatsapp.net",
+      "banned": false,
+      "premium": false,
+      "warnings": 0,
+      "hasOnboarded": false,
+      "createdAt": 1789769209559,
+      "xp": 325,
+      "coins": 50,
+      "level": 1,
+      "streak": 0,
+      "lastDaily": null
+    },
+    "447700900123@s.whatsapp.net": {
+      "jid": "447700900123@s.whatsapp.net",
+      "banned": false,
+      "premium": false,
+      "warnings": 0,
+      "hasOnboarded": false,
+      "createdAt": 1789769230489,
+      "xp": 5,
+      "coins": 0,
+      "level": 0,
+      "streak": 0,
+      "lastDaily": null
+    },
+    "120363012345678901@g.us": {
+      "jid": "120363012345678901@g.us",
+      "banned": false,
+      "premium": false,
+      "warnings": 0,
+      "hasOnboarded": false,
+      "createdAt": 1789772995627,
+      "xp": 10,
+      "coins": 0,
+      "level": 0,
+      "streak": 0,
+      "lastDaily": null
+    },
+    "2348012345678@s.whatsapp.net": {
+      "jid": "2348012345678@s.whatsapp.net",
+      "banned": false,
+      "premium": false,
+      "warnings": 0,
+      "hasOnboarded": false,
+      "createdAt": 1789773114116,
+      "xp": 37,
+      "coins": 0,
+      "level": 0,
+      "streak": 0,
+      "lastDaily": null
+    },
+    "2348888888888@s.whatsapp.net": {
+      "jid": "2348888888888@s.whatsapp.net",
+      "banned": false,
+      "premium": false,
+      "warnings": 0,
+      "hasOnboarded": false,
+      "createdAt": 1789773854011,
+      "xp": 14,
+      "coins": 0,
+      "level": 0,
+      "streak": 0,
+      "lastDaily": null
+    },
+    "2347777777777@s.whatsapp.net": {
+      "jid": "2347777777777@s.whatsapp.net",
+      "banned": false,
+      "premium": false,
+      "warnings": 0,
+      "hasOnboarded": false,
+      "createdAt": 1789774423003,
+      "xp": 8,
+      "coins": 0,
+      "level": 0,
+      "streak": 0,
+      "lastDaily": null
+    }
+  },
+  "groups": {
+    "120363012345678901@g.us": {
+      "jid": "120363012345678901@g.us",
+      "antilink": false,
+      "antitag": false,
+      "mute": false,
+      "warnings": {},
+      "createdAt": 1789773107212,
+      "customCommands": {
+        "ping": {
+          "text": "mine now",
+          "createdBy": "admin",
+          "createdAt": 1789774305905
+        }
+      }
+    }
+  },
+  "settings": {
+    "_migrations": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "menuStyle": 1,
+    "theme": "modern",
+    "footerStyle": "clean",
+    "publicMode": true,
+    "autoRead": true,
+    "pluginStats": {},
+    "connectionStats": {
+      "totalConnections": 0,
+      "disconnects": 0,
+      "lastConnected": null,
+      "lastDisconnected": null,
+      "uptime": 0
+    },
+    "sudoOwners": [],
+    "backupTest2": "before"
+  },
+  "stats": {
+    "commandsUsed": {
+      "backup": 8,
+      "menu": 9,
+      "setchannel": 12,
+      "ping": 5,
+      "meme": 1,
+      "remind": 16,
+      "share": 1,
+      "warns": 4,
+      "wordchain": 12,
+      "del": 5,
+      "delall": 3,
+      "setcmd": 6,
+      "subscribe": 4,
+      "broadcast": 2,
+      "tiktok": 1
+    }
+  },
+  "reminders": [],
+  "digest": {
+    "subscribers": {
+      "233533416608@s.whatsapp.net": {
+        "lastSentDate": "2026-09-18"
+      }
+    }
+  }
+}
