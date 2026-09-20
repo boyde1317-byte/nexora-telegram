@@ -61,7 +61,10 @@ export default {
         `🔗 URL: ${data.html_url}`;
       await m.reply(text);
     } catch (err) {
-      await m.reply.error(`Repository not found or error: ${err.message}`);
+      const hint = err.message.includes('404')
+        ? '\n\nThis repo is private or doesn\'t exist. If it\'s private, set a GITHUB_TOKEN env var with repo read access to fetch it.'
+        : '';
+      await m.reply.error(`Repository not found or error: ${err.message}${hint}`);
     }
   }
 };

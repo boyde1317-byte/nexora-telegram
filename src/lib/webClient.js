@@ -249,9 +249,18 @@ export const Providers = {
   // ── GitHub repo lookup (GitHub API — free, 60/hr no key) ─────────────────
   // Accepts "owner/repo" format (e.g. "facebook/react")
   github: async (repo) => {
+    // GitHub's API 404s on %2F — encode owner and repo separately so the
+    // path keeps its literal slash: repos/owner/repo, never owner%2Frepo.
+    const [owner, ...rest] = String(repo).split('/');
+    const repoName = rest.join('/');
+    if (!owner || !repoName) throw new Error('Invalid repo format — use owner/repo');
+    // Optional token: raises the rate limit (60→5000/hr) and lets the
+    // command see private repos. Set GITHUB_TOKEN in the bot environment.
+    const ghHeaders = { 'Accept': 'application/vnd.github.v3+json' };
+    if (process.env.GITHUB_TOKEN) ghHeaders['Authorization'] = `Bearer ${process.env.GITHUB_TOKEN}`;
     const { data } = await webClient.fetch(
-      `https://api.github.com/repos/${encodeURIComponent(repo)}`,
-      { headers: { 'Accept': 'application/vnd.github.v3+json' }, useCache: true }
+      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`,
+      { headers: ghHeaders, useCache: true }
     );
     return data;
   },
