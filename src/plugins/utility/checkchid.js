@@ -5,10 +5,41 @@
  * for related lookup and group management commands.
  */
 import { withReactionStatus} from '../../lib/cosmetics.js';
+import { _resolveChannel } from '../general/newsletter.js';
 import { richTableCard, actionCard} from '../../lib/interactiveKit.js';
 import { asciiBuilder} from '../../ui/asciiBuilder.js';
 
 const CHANNEL_RE = /(?:whatsapp\.com\/channel\/|newsletter\/)([\w-]+)/i;
+
+/** Normalize the fork's newsletter metadata (snake_case, thread_metadata
+ *  nesting) into the flat camelCase shape the table rows expect. */
+function normalizeMeta(raw) {
+  const m      = raw || {};
+  const thread = m.thread_metadata || m.metadata || {};
+  return {
+    id:             m.id || m.jid || '',
+    name:           m.name || thread.name?.text || thread.name || 'Unknown',
+    subscriberCount: m.subscribers ?? m.subscriber_count ?? thread.subscribers_count ?? null,
+    verification:   m.verification || thread.verification || '',
+    creationTime:   m.creation_time ?? thread.creation_time ?? null,
+    description:    m.description || thread.description?.text || thread.description || '',
+  };
+}
+
+/** Resolve a channel link/invite/JID on this build of the socket.
+ *  Uses the fork's newsletterResolve/newsletterMetadata API (baileys
+ *  0.3.18-r4 has no getNewsletterInfo); falls back to getNewsletterInfo
+ *  for other builds. Throws on failure. */
+async function resolveChannelInfo(sock, input) {
+  if (typeof sock.getNewsletterInfo === 'function') {
+    return normalizeMeta(await sock.getNewsletterInfo(input));
+  }
+  const resolved = await _resolveChannel(sock, input);
+  if (!resolved?.metadata) throw new Error('channel did not resolve — check the link');
+  const meta = normalizeMeta(resolved.metadata);
+  if (!meta.id) meta.id = resolved.jid || '';
+  return meta;
+}
 
 export default {
   name: 'checkchid',
@@ -25,7 +56,7 @@ export default {
       if (link && CHANNEL_RE.test(link)) {
         let meta;
         try {
-          meta = await sock.getNewsletterInfo(link);
+          meta = await resolveChannelInfo(sock, link);
         } catch (err) {
           return await m.reply.error(`Could not fetch channel info: ${err.message}`);
         }
@@ -82,9 +113,9 @@ export default {
 
       if (jid.endsWith('@newsletter')) {
         try {
-          const nMeta = await sock.getNewsletterInfo(jid);
-          if (nMeta?.name)            rows.push(['Channel Name',  nMeta.name]);
-          if (nMeta?.subscriberCount) rows.push(['Subscribers',   String(nMeta.subscriberCount)]);
+          const nMeta = await resolveChannelInfo(sock, jid);
+          if (nMeta?.name)                     rows.push(['Channel Name',  nMeta.name]);
+          if (nMeta?.subscriberCount != null)  rows.push(['Subscribers',   String(nMeta.subscriberCount)]);
         } catch (_) {}
       }
 

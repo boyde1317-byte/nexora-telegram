@@ -393,7 +393,7 @@ export default {
 // ═════════════════════════════════════════════════════════════════════════════
 // HELPER: Resolve channel link/invite/JID to { jid, metadata }
 // ═════════════════════════════════════════════════════════════════════════════
-async function _resolveChannel(sock, input) {
+export async function _resolveChannel(sock, input) {
   if (!input || typeof input !== 'string') return null;
   const trimmed = input.trim();
 
