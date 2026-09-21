@@ -14,6 +14,11 @@
  *   .orderapprove [id]    — super owner (also reachable via DM card)
  *   .orderdeny [id]       — super owner
  *
+ * The buyer-facing confirmation card uses the .brand Moonson style:
+ * »/› chevron body, status-quoted contact contextInfo, and the
+ * booking_confirmation nativeFlow button that opens a full-screen
+ * Order Details sheet (same machinery as .brand's Brand Details).
+ *
  * Plans come from the same STORE_PLANS env the store card reads, so the
  * picker rows and the order validation can never drift apart.
  */
@@ -55,6 +60,26 @@ function matchPlan(token) {
     if (ram === t || ram === `${t}gb` || t === ram.replace('gb', '')) return plan;
   }
   return null;
+}
+
+/** Status-quoted contact card contextInfo — same reply-bar effect as .brand. */
+function brandOrderContext(botName, phone) {
+  const vcard = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `N:${botName} Bot`,
+    `FN:${botName} Bot`,
+    `ORG:${botName};`,
+    `TEL;type=CELL;type=VOICE;waid=${phone}:+${phone}`,
+    'END:VCARD',
+  ].join('\r\n');
+  return {
+    mentionedJid: [],
+    stanzaId: 'StatusBiz',
+    participant: '0@s.whatsapp.net',
+    remoteJid: 'status@broadcast',
+    quotedMessage: { contactMessage: { displayName: botName, vcard } },
+  };
 }
 
 function superOwnerJid() {
@@ -192,18 +217,70 @@ export default {
       );
     }
 
+    // ── .brand-style confirmation card (Moonson machinery) ─────────────
+    const botName = brand.name;
+    const phone   = (owner.ownerNumber || config.superOwner?.[0] || '').toString().replace(/[^0-9]/g, '');
+    const waLink  = phone ? `https://wa.me/${phone}` : ownerWaLink();
+    const groupLink = process.env.BRAND_GROUP_LINK || 'https://chat.whatsapp.com/GUgEw0Nd6CeEEmX7AQwnoQ';
+
+    const sheet =
+      `» *${botName}*\n` +
+      `  › Order *${order.id}* — confirmed & queued\n\n` +
+      `» *Your Order*\n` +
+      `  › Plan: ${order.plan} RAM Server\n` +
+      `  › Price: ${order.price} GHS\n` +
+      `${note ? `  › Note: ${note}\n` : ''}\n` +
+      `» *What Happens Next*\n` +
+      `  › The owner reviews your order in their DM\n` +
+      `  › Once approved you'll get a payment link\n` +
+      `  › Quote *${order.id}* whenever you follow up\n\n` +
+      `» *Order Policy*\n` +
+      `  › Orders expire after ${ORDER_TTL_LABEL}\n` +
+      `  › All prices in Ghana Cedis (GHS)\n\n` +
+      `» *Need Help?*\n` +
+      `${waLink ? `  › WhatsApp: wa.me/${phone}\n` : ''}` +
+      `  › Group: ${groupLink}\n\n` +
+      `_Powered by ${botName} — ${brand.signature}_`;
+
+    const outerBody =
+      `» *${botName}*\n` +
+      `  › Order *${order.id}* confirmed & queued\n\n` +
+      `» *Your Order*\n` +
+      `  › ${order.plan} RAM Server · ${order.price} GHS\n` +
+      `${note ? `  › Note: ${note}\n\n` : '\n'}` +
+      `» *Next Step*\n` +
+      `  › Owner reviews it — you'll hear back here shortly\n\n` +
+      `_Tap the button below for full order details._`;
+
     const card = new Button(sock)
       .setTitle(`🧾 Order ${order.id}`)
-      .setSubtitle(`${plan.ram} Server · ${plan.price} GHS`)
-      .setBody(
-        `✅ *ORDER FILED*\n\n` +
-        `Plan: *${plan.ram} RAM Server*\n` +
-        `Price: *${plan.price} GHS*\n` +
-        `${note ? `Note: _${note}_\n` : ''}\n` +
-        `The owner reviews it in their DM — you'll hear back here shortly. ` +
-        `Quote *${order.id}* if you follow up. Orders expire after ${ORDER_TTL_LABEL}.`
-      )
-      .setFooter(brand.copyright || `© ${brand.name}`);
+      .setSubtitle(`${order.plan} Server · ${order.price} GHS`)
+      .setBody(outerBody)
+      .setFooter(brand.copyright || `© ${brand.name}`)
+      .setContextInfo(brandOrderContext(botName, phone));
+
+    // booking_confirmation — same full-screen sheet button as .brand
+    card.addButton('booking_confirmation', {
+      start_datetime: new Date().toISOString(),
+      end_datetime: new Date(Date.now() + 600000).toISOString(),
+      location: `${order.plan} Server Order`,
+      booking_url: waLink || groupLink,
+      phone_number: phone,
+      booking_management_url: waLink || groupLink,
+      description: sheet,
+      email: '',
+      display_text: `📋 View Order Details`,
+      display_content: {
+        display_language: 'en',
+        display_meeting_type: 'Order Details',
+        display_bottom_sheet_header: `📋 Order ${order.id}`,
+        display_add_to_calendar_cta_text: 'ORDER',
+        display_view_on_maps_cta_text: 'Contact Owner',
+        display_manage_booking_cta_text: '📱 Contact Owner',
+        display_manage_booking_not_supported_text: 'Order Info',
+        display_read_more: 'View Details',
+      },
+    });
     card.addReply('🖥️ View Plans', `${p}store`);
     card.addReply('📋 Main Menu', `${p}menu`);
     try {
