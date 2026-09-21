@@ -395,11 +395,50 @@ export const Providers = {
   // versions, author, repository. Scoped names are percent-encoded the
   // same way the npm CLI does it — the registry decodes %2F back to '/'.
   npm: async (pkg) => {
+    // The registry wants the scope slash as %2F but the @ left literal:
+    // encodeURIComponent('@types/node') → '%40types%2Fnode' → HTTP 404.
+    const encoded = pkg.trim().replace(/^\/+|\/+$/g, '').replace(/\//g, '%2F');
+
+    // Fetch the /latest manifest (a few KB) instead of the full packument —
+    // big packages like @types/node ship packuments over the 10MB body cap.
+    let manifest = null;
+    try {
+      const { data } = await webClient.fetch(
+        `https://registry.npmjs.org/${encoded}/latest`,
+        { useCache: true, cacheTtl: 300000, retries: 1 }
+      );
+      manifest = data && data.name ? data : null;
+    } catch (e) {
+      if (!/\b404\b/.test(e.message)) throw e;  // network/server errors still bubble
+    }
+
+    if (manifest) {
+      // weekly downloads — best-effort enrichment, never fatal
+      try {
+        const { data } = await webClient.fetch(
+          `https://api.npmjs.org/downloads/point/last-week/${encoded}`,
+          { useCache: true, cacheTtl: 3600000, retries: 1 }
+        );
+        manifest.weeklyDownloads = typeof data?.downloads === 'number' ? data.downloads : null;
+      } catch (_) {
+        manifest.weeklyDownloads = null;
+      }
+      return manifest;
+    }
+
+    // unknown package — find close matches instead of a dead-end 404
     const { data } = await webClient.fetch(
-      `https://registry.npmjs.org/${encodeURIComponent(pkg)}`,
-      { useCache: true, cacheTtl: 300000 }
+      `https://registry.npmjs.org/-/v1/search?text=${encodeURIComponent(pkg)}&size=5`
     );
-    return data;
+    const err = new Error(`package "${pkg}" not found on npm`);
+    err.notFound = true;
+    err.suggestions = (data.objects || [])
+      .map((o) => o.package)
+      .map(({ name, version, description }) => ({
+        name, version,
+        desc: (description || '').slice(0, 80),
+      }));
+    throw err;
   },
 
   // ── MDN docs search (free, no key) ────────────────────────────────────────
