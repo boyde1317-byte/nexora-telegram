@@ -31,7 +31,7 @@ function stripDevice(jid) {
   if (!jid || typeof jid !== 'string') return '';
   const at = jid.lastIndexOf('@');
   const domain = at !== -1 ? jid.slice(at) : '';
-  const user = (at !== -1 ? jid.slice(0, at) : jid).split(':')[0];
+  const user = (at !== -1 ? jid.slice(0, at) : jid).split(':')[0].replace(/\.\d+$/, '');
   return domain ? user + domain : user;
 }
 

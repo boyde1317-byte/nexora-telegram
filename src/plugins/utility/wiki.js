@@ -79,7 +79,7 @@ export default {
         {
           primitiveStyle: 'nixcode',
           headerText: `📖 *${result.title}*_\n${result.description ? `\n_${result.description}_\n` : ''}\n${result.extract}`,
-          footer: 'Source: Wikipedia — tap the image to read the full article',
+          footer: `Read more: ${result.url}\nSource: Wikipedia`,
         },
       );
 
