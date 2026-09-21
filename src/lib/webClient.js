@@ -119,6 +119,90 @@ export class WebClient {
 export const webClient = new WebClient();
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Fuzzy timezone resolution — turns user input like 'london', 'nyc' or
+// 'europe/paris' into a valid IANA zone before Intl chokes on it.
+// ─────────────────────────────────────────────────────────────────────────────
+const CITY_ALIASES = new Map(Object.entries({
+  'nyc': 'America/New_York', 'newyork': 'America/New_York', 'new york': 'America/New_York',
+  'la': 'America/Los_Angeles', 'losangeles': 'America/Los_Angeles', 'los angeles': 'America/Los_Angeles',
+  'sf': 'America/Los_Angeles', 'sanfrancisco': 'America/Los_Angeles', 'san francisco': 'America/Los_Angeles',
+  'vegas': 'America/Los_Angeles', 'chicago': 'America/Chicago',
+  'houston': 'America/Chicago', 'dallas': 'America/Chicago',
+  'toronto': 'America/Toronto', 'vancouver': 'America/Vancouver',
+  'mexicocity': 'America/Mexico_City', 'mexico city': 'America/Mexico_City',
+  'saopaulo': 'America/Sao_Paulo', 'sao paulo': 'America/Sao_Paulo', 'rio': 'America/Sao_Paulo',
+  'buenosaires': 'America/Argentina/Buenos_Aires', 'buenos aires': 'America/Argentina/Buenos_Aires',
+  'london': 'Europe/London', 'paris': 'Europe/Paris', 'berlin': 'Europe/Berlin',
+  'madrid': 'Europe/Madrid', 'rome': 'Europe/Rome', 'amsterdam': 'Europe/Amsterdam',
+  'moscow': 'Europe/Moscow', 'kyiv': 'Europe/Kyiv', 'kiev': 'Europe/Kyiv',
+  'lisbon': 'Europe/Lisbon', 'dublin': 'Europe/Dublin', 'zurich': 'Europe/Zurich',
+  'vienna': 'Europe/Vienna', 'prague': 'Europe/Prague', 'stockholm': 'Europe/Stockholm',
+  'athens': 'Europe/Athens', 'warsaw': 'Europe/Warsaw', 'istanbul': 'Europe/Istanbul',
+  'accra': 'Africa/Accra', 'lagos': 'Africa/Lagos', 'abuja': 'Africa/Lagos',
+  'nairobi': 'Africa/Nairobi', 'cairo': 'Africa/Cairo', 'casablanca': 'Africa/Casablanca',
+  'johannesburg': 'Africa/Johannesburg', 'joburg': 'Africa/Johannesburg',
+  'capetown': 'Africa/Johannesburg', 'cape town': 'Africa/Johannesburg',
+  'kampala': 'Africa/Kampala', 'kigali': 'Africa/Kigali', 'dar': 'Africa/Dar_es_Salaam',
+  'addis': 'Africa/Addis_Ababa', 'tunis': 'Africa/Tunis', 'algiers': 'Africa/Algiers',
+  'dakar': 'Africa/Dakar', 'kinshasa': 'Africa/Kinshasa',
+  'dubai': 'Asia/Dubai', 'riyadh': 'Asia/Riyadh', 'doha': 'Asia/Qatar',
+  'kuwait': 'Asia/Kuwait', 'tehran': 'Asia/Tehran', 'baghdad': 'Asia/Baghdad',
+  'israel': 'Asia/Jerusalem', 'jerusalem': 'Asia/Jerusalem',
+  'karachi': 'Asia/Karachi', 'lahore': 'Asia/Karachi', 'islamabad': 'Asia/Karachi',
+  'delhi': 'Asia/Kolkata', 'new delhi': 'Asia/Kolkata', 'mumbai': 'Asia/Kolkata',
+  'bangalore': 'Asia/Kolkata', 'kolkata': 'Asia/Kolkata', 'india': 'Asia/Kolkata',
+  'dhaka': 'Asia/Dhaka', 'colombo': 'Asia/Colombo', 'kathmandu': 'Asia/Kathmandu',
+  'beijing': 'Asia/Shanghai', 'shanghai': 'Asia/Shanghai', 'china': 'Asia/Shanghai',
+  'hongkong': 'Asia/Hong_Kong', 'hong kong': 'Asia/Hong_Kong', 'hk': 'Asia/Hong_Kong',
+  'taipei': 'Asia/Taipei', 'seoul': 'Asia/Seoul', 'korea': 'Asia/Seoul',
+  'tokyo': 'Asia/Tokyo', 'japan': 'Asia/Tokyo', 'singapore': 'Asia/Singapore',
+  'kl': 'Asia/Kuala_Lumpur', 'kualalumpur': 'Asia/Kuala_Lumpur', 'kuala lumpur': 'Asia/Kuala_Lumpur',
+  'jakarta': 'Asia/Jakarta', 'manila': 'Asia/Manila', 'bangkok': 'Asia/Bangkok',
+  'hanoi': 'Asia/Ho_Chi_Minh', 'saigon': 'Asia/Ho_Chi_Minh',
+  'sydney': 'Australia/Sydney', 'melbourne': 'Australia/Melbourne',
+  'brisbane': 'Australia/Brisbane', 'perth': 'Australia/Perth', 'auckland': 'Pacific/Auckland',
+}));
+
+/**
+ * Fuzzy-resolve a user-supplied timezone string to a valid IANA zone.
+ * Order: exact IANA zone → case-insensitive zone → city alias →
+ * city-segment match across all IANA zones → separator-insensitive zone match.
+ * Bare offsets ('+5', 'GMT-4') are rejected. Returns { zone } or null.
+ */
+export function resolveTimezone(input) {
+  if (!input || typeof input !== 'string') return null;
+  const raw = input.trim();
+  if (!raw) return null;
+  if (/^[+-]\d{1,2}(:?\d{2})?$/.test(raw) || /^(GMT|UTC)[+-]/i.test(raw)) return null;
+  const lower = raw.toLowerCase();
+  const noSpace = lower.replace(/[ _]/g, '');
+
+  try {
+    const zones = Intl.supportedValuesOf('timeZone');
+    const pool = ['UTC', 'GMT', ...zones];
+
+    const exact = pool.find((z) => z.toLowerCase() === lower);
+    if (exact) return { zone: exact };
+
+    const alias = CITY_ALIASES.get(lower);
+    if (alias) return { zone: alias };
+
+    // city segment of any zone, e.g. 'london' → Europe/London,
+    // 'yangon' → Asia/Yangon; ambiguous hits prefer the shortest zone path
+    const segHits = zones.filter((z) => z.split('/').pop().replace(/_/g, '').toLowerCase() === noSpace);
+    if (segHits.length === 1) return { zone: segHits[0] };
+    if (segHits.length > 1) {
+      const best = [...segHits].sort((a, b) => a.split('/').length - b.split('/').length || a.localeCompare(b))[0];
+      return { zone: best };
+    }
+
+    const zonal = pool.find((z) => z.toLowerCase().replace(/[_ /]/g, '') === noSpace);
+    if (zonal) return { zone: zonal };
+  } catch (_) { /* engine without supportedValuesOf */ }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Providers — all free, no API key required unless explicitly noted.
 // APIs requiring keys have free-tier fallbacks listed in comments.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -336,6 +420,9 @@ export const Providers = {
   // Invalid zones throw RangeError from Intl → normalized below.
   time: async (timezone) => {
     try {
+      const resolved = resolveTimezone(timezone);
+      if (!resolved) throw new Error(`Invalid or unknown timezone: ${timezone}`);
+      timezone = resolved.zone;
       const now = new Date();
       const parts = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
