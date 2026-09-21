@@ -2,6 +2,7 @@ import { baileysBridge } from '../../core/baileysBridge.js';
 import { buildTextMenu } from '../formatter.js';
 import { imageManager } from '../../images/imageManager.js';
 import { toSmallcaps } from '../../lib/smallcaps.js';
+import { SUPPORT_GROUP_URL } from '../../lib/constants.js';
 import { buildFakeImageQuote } from '../../lib/waUtils.js';
 
 // Maximum carousel cards sent in a single batch.
@@ -91,6 +92,7 @@ export const carouselMenu = {
         nativeFlow: [
           { text: `\u26A1 ${unit.cats[0].toUpperCase()}`, id: `${menuData.prefix}menu` },
           { text: `\u{1F916} ${toSmallcaps('Stats')}`, id: `${menuData.prefix}menu aiDynamic` },
+          { text: '\u{1F4AC} Join Group', url: SUPPORT_GROUP_URL },
         ],
         ...(imgData.source?.startsWith('http')
           ? { image: { url: imgData.source } }

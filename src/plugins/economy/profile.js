@@ -5,7 +5,8 @@
  * formatted caption. No tables, no follow-up messages — just one look.
  */
 import { withReactionStatus } from '../../lib/cosmetics.js';
-import { actionCard } from '../../lib/interactiveKit.js';
+import { mixedCard } from '../../lib/interactiveKit.js';
+import { SUPPORT_GROUP_URL } from '../../lib/constants.js';
 import { getLevelProgress, progressBar, rankInfo, streakEmoji } from '../../economy/leveling.js';
 import { resolveDisplayIdentity } from '../../lib/identity.js';
 
@@ -86,10 +87,11 @@ export default {
       // Single interactive message: cute card + native quick-reply buttons.
       // Buttons run economy commands; viewers can explore straight from a profile.
       const actions = [
-        { label: '💰 Daily',        cmd: `${p}daily` },
-        { label: '🏆 Leaderboard',  cmd: `${p}leaderboard` },
-        { label: '🛍️ Shop',         cmd: `${p}shop` },
-        { label: '⚖️ Balance',      cmd: `${p}balance` },
+        { kind: 'action', label: '💰 Daily',        cmd: `${p}daily` },
+        { kind: 'action', label: '🏆 Leaderboard',  cmd: `${p}leaderboard` },
+        { kind: 'action', label: '🛍️ Shop',         cmd: `${p}shop` },
+        { kind: 'action', label: '⚖️ Balance',      cmd: `${p}balance` },
+        { kind: 'url',    label: '💬 Join Group',    url: SUPPORT_GROUP_URL },
       ];
 
       let ppUrl = null;
@@ -101,14 +103,14 @@ export default {
           const buffer = Buffer.from(await res.arrayBuffer());
           try {
             // Native interactive card with the profile picture as header image
-            return await actionCard(sock, m.from, { text: caption, image: buffer, title: 'NEXORA Profile' }, actions, { quoted: m });
+            return await mixedCard(sock, m.from, { text: caption, image: buffer, title: 'NEXORA Profile' }, actions, { quoted: m });
           } catch (_) { /* interactive path failed — fall back to image + caption */ }
           return await sock.sendMessage(m.from, { image: buffer, caption }, { quoted: m });
         }
       }
 
       try {
-        return await actionCard(sock, m.from, { text: caption, footer: 'Tap a button to explore' }, actions, { quoted: m });
+        return await mixedCard(sock, m.from, { text: caption, footer: 'Tap a button to explore' }, actions, { quoted: m });
       } catch (_) {
         return await m.reply(caption);
       }
