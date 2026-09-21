@@ -141,7 +141,7 @@ export async function awardMessageXp(m, sock) {
  */
 async function handleViewOnceRescue(rawMessage, sock, jid, sender) {
   const raw = rawMessage.message || {};
-  const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV3']
+  const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension']
     .find((k) => raw[k]?.message);
   if (!voKey) return;
   const inner = raw[voKey].message;
@@ -400,7 +400,7 @@ try {
   // messages. Runs fire-and-forget so it never blocks the pipeline.
   if (isGroupMsg && !m.fromMe && db.getGroup(jid).antiviewonce) {
     const raw = rawMessage.message || {};
-    const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV3']
+    const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension']
       .find((k) => raw[k]?.message);
     if (voKey) {
       handleViewOnceRescue(rawMessage, sock, jid, sender).catch((err) => {

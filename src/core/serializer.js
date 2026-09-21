@@ -44,7 +44,8 @@ function extractBody(type, msgContent) {
         Object.values(msgContent.message || {})[0]
       );
     case 'viewOnceMessage':
-    case 'viewOnceMessageV2': {
+    case 'viewOnceMessageV2':
+    case 'viewOnceMessageV2Extension': {
       // Unwrap view-once envelope — body is usually empty for commands but expose it
       const inner = msgContent.message || {};
       const innerType = Object.keys(inner)[0] || '';

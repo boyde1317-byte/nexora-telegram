@@ -5,8 +5,10 @@
  * re-sends it as normal media that stays in the chat. Unlike .save
  * (a generic media extractor), this is strict: it only touches actual
  * view-once envelopes, and it unwraps every nesting WhatsApp uses —
- * viewOnceMessage, viewOnceMessageV2 and view-once wrapped inside
- * ephemeralMessage.
+ * viewOnceMessage, viewOnceMessageV2, viewOnceMessageV2Extension
+ * (what current clients send for one-view photos/videos/voice notes)
+ * and view-once wrapped inside ephemeralMessage / editedMessage /
+ * documentWithCaptionMessage.
  *
  * Privacy gate: in groups only admins (and the owner) may reveal —
  * a view-once is usually aimed at one person. In DMs anyone can use
@@ -14,26 +16,51 @@
  */
 const MEDIA_TYPES = ['imageMessage', 'videoMessage', 'audioMessage', 'stickerMessage', 'documentMessage'];
 
-/** Walk up to 4 envelope layers to find the view-once inner media. */
+// one-view envelope types — V2Extension is what current WhatsApp clients
+// actually send (voice notes and most photos/videos since 2025)
+const VO_ENVELOPES = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension'];
+// pass-through wrappers that can sit AROUND the view-once envelope
+const PASS_THROUGH = ['ephemeralMessage', 'editedMessage', 'documentWithCaptionMessage'];
+
+/**
+ * Walk up to 5 layers to find the view-once inner media. Only content
+ * behind an actual view-once envelope counts; bare media returns null.
+ * Fallback: legacy top-level media flagged viewOnce/viewOnceV2.
+ */
 function unwrapViewOnce(message) {
   let node = message;
-  for (let depth = 0; node && depth < 4; depth++) {
-    const type = node ? Object.keys(node)[0] : '';
-    const inner = node?.[type];
-    if (type === 'viewOnceMessage' || type === 'viewOnceMessageV2') {
-      const content = inner?.message;
-      if (!content) return null;
-      for (const t of MEDIA_TYPES) {
-        if (content[t]) return { type: t, msg: content[t], isViewOnce: true };
-      }
-      return null; // view-once without known media (e.g. location)
-    }
-    if (type === 'ephemeralMessage') {
+  let sawViewOnce = false;
+  for (let depth = 0; node && depth < 5; depth++) {
+    const type = Object.keys(node)[0];
+    const inner = node[type];
+    if (VO_ENVELOPES.includes(type)) {
+      sawViewOnce = true;
       node = inner?.message;
       continue;
     }
+    if (PASS_THROUGH.includes(type)) {
+      node = inner?.message;
+      continue;
+    }
+    if (sawViewOnce) {
+      for (const t of MEDIA_TYPES) {
+        if (node[t]) return { type: t, msg: node[t], isViewOnce: true };
+      }
+      return null; // view-once without known media (e.g. location)
+    }
     // already-unwrapped media — not a view-once at all
     return null;
+  }
+  return null;
+}
+
+/** Legacy view-once: bare top-level media with a view-once flag set. */
+function unwrapLegacyViewOnce(message) {
+  for (const t of MEDIA_TYPES) {
+    const inner = message?.[t];
+    if (inner && (inner.viewOnce || inner.viewOnceV2 || inner.viewOnceV2Extension)) {
+      return { type: t, msg: inner, isViewOnce: true };
+    }
   }
   return null;
 }
@@ -60,7 +87,7 @@ export default {
       }
     }
 
-    const found = unwrapViewOnce(m.quoted.message || {});
+    const found = unwrapViewOnce(m.quoted.message || {}) || unwrapLegacyViewOnce(m.quoted.message || {});
     if (!found) {
       return await m.reply.warn('That message is not view-once media. Reply to a 👁️ one-view photo/video/voice note.');
     }
@@ -91,3 +118,6 @@ export default {
     }
   },
 };
+
+// exported for the test kit (.testrich suite)
+export { unwrapViewOnce, unwrapLegacyViewOnce };
