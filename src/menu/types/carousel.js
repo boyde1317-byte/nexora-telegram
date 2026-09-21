@@ -43,37 +43,59 @@ export const carouselMenu = {
       `${toSmallcaps('Swipe sideways through the cards below to browse command modules:')}\n` +
       `${toSmallcaps('Each card shows top commands \u2014 tap to explore more.')}`;
 
-    const categories = Object.keys(menuData.categories).sort();
+    const categories = Object.keys(menuData.categories)
+      .filter(cat => cat !== 'hidden')
+      .sort();
+
+    // ── Card plan: FULL command lists, zero truncation ───────────────────
+    // WhatsApp carousels hard-cap at MAX_CAROUSEL_CARDS (10). With more
+    // categories than cards, the smallest categories are merged together
+    // into combined packs — every command from every category is still
+    // listed in full; nothing is sliced off and nothing is dropped.
+    const units = categories.map(cat => ({
+      cats: [cat],
+      cmds: menuData.categories[cat].slice(),
+    }));
+    while (units.length > MAX_CAROUSEL_CARDS) {
+      units.sort((a, b) => a.cmds.length - b.cmds.length);
+      const [a, b] = units.splice(0, 2);
+      units.push({
+        cats: [...a.cats, ...b.cats].sort(),
+        cmds: [...a.cmds, ...b.cmds],
+      });
+    }
+    units.sort((a, b) => a.cats[0].localeCompare(b.cats[0]));
+
+    const buildCaption = (unit) => {
+      const emoji = CATEGORY_EMOJIS[unit.cats[0]] || '\u{1F4C2}';
+      const title = unit.cats.length === 1
+        ? `${emoji} *${toSmallcaps(unit.cats[0] + ' Command Pack')}*`
+        : `${emoji} *${toSmallcaps(unit.cats.join(' + ') + ' Pack')}*`;
+      const sections = unit.cats.map(cat => {
+        const catEmoji = CATEGORY_EMOJIS[cat] || '\u{1F4C2}';
+        const fullList = menuData.categories[cat]
+          .map(c => `\u2022 \`${menuData.prefix}${c.name}\``)
+          .join('\n');
+        return unit.cats.length === 1
+          ? fullList
+          : `${catEmoji} *${toSmallcaps(cat)}*\n${fullList}`;
+      });
+      return `${title}\n\n${sections.join('\n\n')}\n\n${toSmallcaps('Total')}: ${unit.cmds.length} ${toSmallcaps('commands')}`;
+    };
 
     // ── Tier 1: native carousel ───────────────────────────────────────────
     try {
-      const capped = categories.slice(0, MAX_CAROUSEL_CARDS);
-
-      if (categories.length > MAX_CAROUSEL_CARDS) {
-        console.warn(
-          `[MENU carousel] ${categories.length} categories found \u2014 capped at ${MAX_CAROUSEL_CARDS} cards. ` +
-          `Remaining ${categories.length - MAX_CAROUSEL_CARDS} categories omitted to prevent rate-limit bans.`
-        );
-      }
-
-      const cards = capped.map((cat, idx) => {
-        const cmds     = menuData.categories[cat];
-        const emoji    = CATEGORY_EMOJIS[cat] || '\u{1F4C2}';
-        const cmdList  = cmds.map(c => `\u2022 \`${menuData.prefix}${c.name}\``).slice(0, 5).join('\n');
-        const overflow = cmds.length > 5 ? `\n  \u2502 +${cmds.length - 5} ${toSmallcaps('more')}` : '';
-
-        return {
-          caption:   `${emoji} *${toSmallcaps(cat + ' Command Pack')}*\n\n${cmdList}${overflow}\n\n${toSmallcaps('Total')}: ${cmds.length} ${toSmallcaps('commands')}`,
-          footer:    `\u2726 ${toSmallcaps('Card')} ${idx + 1}/${capped.length} \u2502 ${menuData.botName}`,
-          nativeFlow: [
-            { text: `\u26A1 ${cat.toUpperCase()}`, id: `${menuData.prefix}menu` },
-            { text: `\u{1F916} ${toSmallcaps('Stats')}`, id: `${menuData.prefix}menu aiDynamic` },
-          ],
-          ...(imgData.source?.startsWith('http')
-            ? { image: { url: imgData.source } }
-            : (imgData.buffer ? { image: imgData.buffer } : {})),
-        };
-      });
+      const cards = units.map((unit, idx) => ({
+        caption:   buildCaption(unit),
+        footer:    `\u2726 ${toSmallcaps('Card')} ${idx + 1}/${units.length} \u2502 ${menuData.botName}`,
+        nativeFlow: [
+          { text: `\u26A1 ${unit.cats[0].toUpperCase()}`, id: `${menuData.prefix}menu` },
+          { text: `\u{1F916} ${toSmallcaps('Stats')}`, id: `${menuData.prefix}menu aiDynamic` },
+        ],
+        ...(imgData.source?.startsWith('http')
+          ? { image: { url: imgData.source } }
+          : (imgData.buffer ? { image: imgData.buffer } : {})),
+      }));
 
       return await baileysBridge.sendCarousel(sock, m.from, {
         text:  headerText,
