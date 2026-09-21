@@ -40,6 +40,9 @@ export const AI_JIDS = [
   META_AI_JID,                    // Meta AI    (+1 313 555 0002)
   '18002428478@s.whatsapp.net',   // ChatGPT    (+1-800-242-8478, 1-800-CHATGPT)
   '18334363285@s.whatsapp.net',   // Perplexity (+1 833 436-3285)
+  // '15551234567@s.whatsapp.net',  // Base44 Superagent — add your agent's
+  // provisioned WhatsApp number here, then map a display name in AI_NAMES.
+  // No public Base44 number exists; only add one you provision yourself.
 ]
 
 /**
@@ -196,23 +199,23 @@ export function buildFakeOrderQuote({ title, thumbnail, itemCount = 1, orderId, 
  * const fakeQuote = buildFakeContactQuote({ displayName: 'NEXORA', phoneNumber: '233533416608' })
  * await sock.sendMessage(m.from, { text: 'Hello' }, { quoted: fakeQuote })
  */
-export function buildFakeContactQuote({ displayName, phoneNumber, vcard } = {}) {
-  const cleanNumber = (phoneNumber || '').replace(/[^\d]/g, '')
-
-  // AI attribution lives in the vcard's waid, not on the quote participant:
-  // when the caller doesn't pin a phoneNumber, the contact defaults to one of
-  // the real AI accounts (Meta AI / ChatGPT / Perplexity), so WhatsApp
-  // resolves that account's official name + profile picture as the quoted
-  // contact — the number is real, the profile fetch just works.
-  const { number: aiNumber, name: aiName } = pickAiContact()
+export function buildFakeContactQuote({ displayName, _phoneNumber, vcard, ai } = {}) {
+  // The vcard waid ALWAYS resolves to a real AI account (Meta AI / ChatGPT /
+  // Perplexity, picked at random per message). The caller's phoneNumber is
+  // deliberately NOT used as the waid — it resolves to the owner's own
+  // number, so the quote renders the owner's profile instead of the AI's.
+  // `phoneNumber` stays in the signature for backward compatibility only.
+  // Pin a specific account with `ai` (a JID from AI_JIDS), e.g.
+  //   buildFakeContactQuote({ ai: META_AI_JID })
+  const { number: aiNumber, name: aiName } = ai
+    ? { number: ai.split('@')[0], name: AI_NAMES[ai] || 'Meta AI' }
+    : pickAiContact()
 
   const vcardStr = vcard || [
     'BEGIN:VCARD',
     'VERSION:3.0',
     `FN:${displayName || aiName}`,
-    cleanNumber
-      ? `TEL;type=CELL;waid=${cleanNumber}:+${cleanNumber}`
-      : `TEL;type=CELL;waid=${aiNumber}:+${aiNumber}`,
+    `TEL;type=CELL;waid=${aiNumber}:+${aiNumber}`,
     'END:VCARD',
   ].filter(Boolean).join('\r\n')
 
