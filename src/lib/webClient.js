@@ -368,12 +368,18 @@ export const Providers = {
 
   // ── Screenshot (WordPress mShots — free, no key) ──────────────────────────
   // Returns an image Buffer. Prepends https:// when the caller omitted it.
-  screenshot: async (url) => {
+  screenshot: async (url, opts = {}) => {
     const target = /^https?:\/\//i.test(url) ? url : `https://${url}`;
-    const { data } = await webClient.fetch(
-      `https://s.wordpress.com/mshots/v1/${encodeURIComponent(target)}?w=1280&h=800`,
-      { useCache: true, cacheTtl: 600000 }
-    );
+    const w = opts.width || 1280;
+    const h = opts.height || (opts.tall ? 2400 : 800);
+    const shotUrl = `https://s.wordpress.com/mshots/v1/${encodeURIComponent(target)}?w=${w}&h=${h}`;
+    // mshots returns a small gray "generating…" placeholder the first time
+    // it sees a URL — poll once after a beat so users get the real render.
+    let data = (await webClient.fetch(shotUrl, { useCache: true, cacheTtl: 600000 })).data;
+    if (!data?.length || data.length < 15000) {
+      await new Promise(r => setTimeout(r, 2500));
+      data = (await webClient.fetch(shotUrl, { useCache: false })).data;
+    }
     return data; // Buffer (image)
   },
 };
