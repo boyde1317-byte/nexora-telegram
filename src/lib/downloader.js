@@ -395,6 +395,93 @@ export async function wikiSearch(query) {
   };
 }
 
+/**
+ * Rich Wikipedia lookup for the V2 inline-image rich card (.wiki).
+ *
+ * Two-stage: forgiving action-API search (srlimit=5, best-hit pick,
+ * punctuation-relaxed retry) → REST summary for extract, description,
+ * the article's actual image (thumbnail + original) and timestamp.
+ * Never returns a bare "not found" when hits exist — alternates are
+ * carried back so the caller can suggest them.
+ */
+export async function wikiRichLookup(query) {
+  const clean = (q) => q.replace(/["'*_~`]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const searchTitles = async (q) => {
+    const res = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&srlimit=5`,
+      { signal: AbortSignal.timeout(DEFAULT_TIMEOUT) },
+    );
+    if (!res.ok) throw new Error(`Wikipedia returned HTTP ${res.status}.`);
+    const data = await res.json();
+    return (data?.query?.search || []).map(h => h.title);
+  };
+
+  let titles = [];
+  let tried = query;
+  try { titles = await searchTitles(query); } catch (err) { /* fall through */ }
+  if (!titles.length) {
+    tried = clean(query);
+    if (tried && tried.toLowerCase() !== query.toLowerCase()) {
+      try { titles = await searchTitles(tried); } catch { /* give up below */ }
+    }
+  }
+  if (!titles.length) {
+    const err = new Error(`No Wikipedia article found for that topic.`);
+    err.alternates = [];
+    throw err;
+  }
+
+  // best hit: exact title match, else first result
+  const lower = query.toLowerCase();
+  const title = titles.find(t => t.toLowerCase() === lower) || titles[0];
+
+  // REST summary: extract + the article's real image
+  let extract = '';
+  let description = '';
+  let thumbnailUrl = null;
+  let originalImageUrl = null;
+  let timestamp = null;
+  try {
+    const res = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`,
+      { signal: AbortSignal.timeout(DEFAULT_TIMEOUT) },
+    );
+    if (res.ok) {
+      const sum = await res.json();
+      extract = sum.extract || '';
+      description = sum.description || '';
+      thumbnailUrl = sum.thumbnail?.source || null;
+      originalImageUrl = sum.originalimage?.source || null;
+      timestamp = sum.timestamp || null;
+    }
+  } catch { /* summary optional — snippet fallback below */ }
+
+  // fallback extract from the search snippet when the summary is missing
+  if (!extract) {
+    const res = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exintro=1&explaintext=1&titles=${encodeURIComponent(title)}&format=json`,
+      { signal: AbortSignal.timeout(DEFAULT_TIMEOUT) },
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const page = Object.values(data?.query?.pages || {})[0];
+      extract = (page?.extract || '').split('\n')[0] || 'Summary unavailable.';
+    }
+  }
+
+  return {
+    title,
+    description,
+    extract,
+    thumbnailUrl,
+    originalImageUrl,
+    timestamp,
+    url: `https://en.wikipedia.org/wiki/${encodeURIComponent(title.replace(/ /g, '_'))}`,
+    alternates: titles.filter(t => t !== title).slice(0, 4),
+  };
+}
+
 /** Song lyrics via lyrics.ovh's public API (no key). */
 export async function getLyrics(artist, title) {
   const res = await fetch(
