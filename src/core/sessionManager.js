@@ -49,6 +49,7 @@ import { client } from './client.js';
 import { attachOutgoingTracker } from '../lib/outgoingCache.js';
 import { copyResultCard } from '../lib/interactiveKit.js';
 import { handleMessage } from '../handlers/message.js';
+import { resolveSenderNumber } from './serializer.js';
 import { isTelegramJid, deliverNotification, mirrorSessionAlert } from '../telegram/bridge.js';
 import { handleGroupParticipantsUpdate } from '../handlers/group.js';
 
@@ -461,9 +462,33 @@ async function spawnSessionSocket(phone, phase, notifyJid) {
       // Cross-bot guard: skip messages authored by the main bot or another
       // linked session, so paired bots never react to each other's replies
       // (and cannot be chained into loops in shared groups).
+      //
+      // BUG (2026-10-05): a naive `authorJid.split('@')[0]` only works for
+      // @s.whatsapp.net JIDs. Groups with WhatsApp's privacy-mode LID
+      // delivery present key.participant as an opaque @lid JID instead of
+      // the real phone number, so the naive split returned the LID's own
+      // numeric part — which never matches any entry in getLinkedBotPhones
+      // (a list of real phone numbers). The guard then failed to recognise
+      // a sibling bot as the author, so EVERY paired bot in the group
+      // (not just the one whose owner typed the command) processed the
+      // same message. All of them share one singleton `client.cooldowns`
+      // Map, so whichever socket won the race sent the real reply and set
+      // the cooldown; every other sibling bot checked the cooldown a beat
+      // later, found it already set, and replied with a cooldown notice —
+      // exactly the "one account sends, the rest show cooldown" report.
+      // Fix: resolve LID → phone via the same group-metadata + signalRepository
+      // bridge already proven for owner checks (serializer.resolveSenderNumber),
+      // falling back to the naive split only if resolution comes back empty.
       if (!key.remoteJid.endsWith('@g.us') || key.participant) {
         const authorJid = key.participant || key.remoteJid;
-        const authorPhone = String(authorJid).split('@')[0].split(':')[0];
+        const authorGroupJid = key.remoteJid.endsWith('@g.us') ? key.remoteJid : null;
+        let authorPhone = null;
+        try {
+          authorPhone = await resolveSenderNumber(sock, authorJid, authorGroupJid);
+        } catch (_) {
+          // resolution can throw if the socket has no session/group access yet
+        }
+        if (!authorPhone) authorPhone = String(authorJid).split('@')[0].split(':')[0];
         if (authorPhone !== phone && getLinkedBotPhones(phone).includes(authorPhone)) continue;
       }
 

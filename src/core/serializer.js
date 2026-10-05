@@ -265,7 +265,7 @@ async function resolveIsOwner(sock, senderJid, fromMe, groupJid) {
  *  3. LID → phone via signalRepository (authoritative) as the last resort.
  * Returns null when the number cannot be determined yet.
  */
-async function resolveSenderNumber(sock, senderJid, groupJid) {
+export async function resolveSenderNumber(sock, senderJid, groupJid) {
   const norm = normaliseJid(senderJid);
   const rawNumber = norm.split('@')[0];
   if (!norm.endsWith('@lid')) return rawNumber;
