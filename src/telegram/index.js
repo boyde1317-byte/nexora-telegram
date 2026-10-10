@@ -33,6 +33,9 @@ import TelegramBot from 'node-telegram-bot-api';
 import fs from 'fs';
 import path from 'path';
 
+// Branded banner for /start (best-effort; absent file just logs a warning)
+const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexora-banner.jpg');
+
 import { config } from '../../config/index.js';
 import {
   pairSession,
@@ -162,6 +165,12 @@ export async function startTelegramBot() {
   bot.onText(/\/start/, async (msg) => {
     const name = msg.from?.first_name || 'there';
     const admin = isAdmin(msg.from);
+    // Branded banner first (best-effort; never blocks the welcome text)
+    try {
+      await bot.sendPhoto(msg.chat.id, BANNER_PATH);
+    } catch (err) {
+      console.warn('[TG] banner photo failed, continuing:', err.message);
+    }
     await reply(msg.chat.id,
       `⚡ *Welcome to ${config.botName} Control, ${name}!*\n\n` +
       `This is the Telegram command deck for your NEXORA WhatsApp multi-session fleet — up to *${MAX_EXTRA_SESSIONS} linked numbers*, each running the full NEXORA engine.\n\n` +
