@@ -108,6 +108,22 @@ export const aiTextGenerator = {
     });
     return extractText(response);
   },
+  async writeSong(brief) {
+    const ai = getAiClient();
+    console.log('[AI TEXT GENERATOR] Writing a song...');
+    const response = await ai.models.generateContent({
+      model: CHAT_MODEL,
+      contents: { parts: [{ text: brief }] },
+      config: {
+        systemInstruction:
+          'You are Nexora, a professional songwriter. Write an original song based on the user\'s brief. '
+          + 'Structure it with labeled sections: [Title], [Verse 1], [Chorus], [Verse 2], [Bridge], [Outro] as fitting. '
+          + 'Give it a strong hook, vivid imagery, and natural rhythm. Match the mood and genre the user asks for '
+          + '(default: afrobeats if unspecified). Keep it singable — no long prose, no explanation, just the song.',
+      },
+    });
+    return extractText(response);
+  },
   async brainstormIdeas(topic) {
     const ai = getAiClient();
     console.log('[AI TEXT GENERATOR] Brainstorming ideas...');
