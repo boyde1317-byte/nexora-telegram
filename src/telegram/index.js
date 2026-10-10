@@ -33,6 +33,9 @@ import TelegramBot from 'node-telegram-bot-api';
 import fs from 'fs';
 import path from 'path';
 
+// Developer contact shown on the main menu
+const DEV_CONTACT = { name: 'DeathCore_Xr', url: 'https://wa.me/233533416608' };
+
 // Branded banner for /start (best-effort; absent file just logs a warning)
 const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexora-banner.jpg');
 
@@ -167,6 +170,7 @@ export async function startTelegramBot() {
       [{ text: '⚡ Sessions', callback_data: 'nav:sessions' }, { text: '🔑 Pair a number', callback_data: 'nav:pair' }],
       [{ text: '❓ Help', callback_data: 'nav:help' }, { text: '🔁 Reload fleet', callback_data: 'nav:reload' }],
       ...(admin ? [[{ text: '📥 Pair requests', callback_data: 'nav:requests' }]] : []),
+      [{ text: `👤 Contact Dev — ${DEV_CONTACT.name}`, url: DEV_CONTACT.url }],
     ],
   });
   const backKeyboard = () => ({
