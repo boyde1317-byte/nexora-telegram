@@ -158,8 +158,68 @@ export async function startTelegramBot() {
   const reply = (chatId, text, opts = {}) =>
     bot.sendMessage(chatId, clip(text), {
       parse_mode: opts.plain ? undefined : 'Markdown',
-      ...opts.extra,
+      ...(opts.keyboard ? { reply_markup: opts.keyboard } : {}),
     });
+
+  // ── Inline button UI ───────────────────────────────────────────────
+  const mainMenuKeyboard = (admin) => ({
+    inline_keyboard: [
+      [{ text: '⚡ Sessions', callback_data: 'nav:sessions' }, { text: '🔑 Pair a number', callback_data: 'nav:pair' }],
+      [{ text: '❓ Help', callback_data: 'nav:help' }, { text: '🔁 Reload fleet', callback_data: 'nav:reload' }],
+      ...(admin ? [[{ text: '📥 Pair requests', callback_data: 'nav:requests' }]] : []),
+    ],
+  });
+  const backKeyboard = () => ({
+    inline_keyboard: [[{ text: '⬅️ Menu', callback_data: 'nav:menu' }]],
+  });
+  const sessionsKeyboard = () => ({
+    inline_keyboard: [
+      [{ text: '🔄 Refresh', callback_data: 'nav:sessions' }, { text: '⬅️ Menu', callback_data: 'nav:menu' }],
+    ],
+  });
+
+  async function sendSessionsList(chatId) {
+    const all = listSessions();
+    if (!all.length) {
+      return reply(chatId, `No linked sessions yet — tap *Pair a number* below.`, { keyboard: mainMenuKeyboard(false) });
+    }
+    const icon = (st) =>
+      st === 'online' ? '🟢' :
+      st === 'awaiting_code' ? '🔑' :
+      st === 'reconnecting' ? '🔄' :
+      st === 'starting' ? '⏳' : '🔴';
+    const up = (ts) => ts ? new Date(ts).toISOString().slice(0, 16).replace('T', ' ') : '—';
+    const lines = all.map((sn, i) =>
+      `${icon(sn.status)} *${i + 1}. +${sn.phone}* — ${sn.status}` +
+      (sn.name ? ` (${sn.name})` : '') +
+      (sn.connectedAt ? ` • since ${up(sn.connectedAt)} UTC` : '') +
+      (sn.lastError && sn.status !== 'online' ? `\n      ⚠️ ${sn.lastError}` : '')
+    );
+    await reply(chatId,
+      `📋 *Linked Sessions (${all.length}/${MAX_EXTRA_SESSIONS})*\n\n${lines.join('\n\n')}`,
+      { keyboard: sessionsKeyboard() });
+  }
+
+  async function sendHelpGuide(chatId, admin) {
+    return reply(chatId,
+      `📚 *${config.botName} Telegram Command Guide*\n\n` +
+      `*Pairing*\n` +
+      `  /pair 233XXXXXXXXX — link a number (admins: code lands right here; others: request goes to admins)\n` +
+      `  /pairapprove [number] — approve a pending request (admin)\n` +
+      `  /pairdeny [number] — deny a pending request (admin)\n` +
+      `  /pairrequests — request queue (admin)\n` +
+      `  /unpair <number> — remove a linked session (admin)\n\n` +
+      `*Fleet*\n` +
+      `  /sessions — every session, live status\n` +
+      `  /reload — reconnect all saved sessions (admin)\n` +
+      `  /logoutall — wipe the whole fleet (owner)\n` +
+      `  /broadcast <text> — send to all groups of all sessions (owner)\n\n` +
+      `*Admin*\n` +
+      `  /addadmin <id> — grant admin (owner)\n` +
+      `  /ping — latency check\n\n` +
+      `All WhatsApp-side NEXORA commands (.menu etc.) work unchanged on every linked number.`,
+      { keyboard: mainMenuKeyboard(admin) });
+  }
 
   // ── /start ──────────────────────────────────────────────────────────
   bot.onText(/\/start/, async (msg) => {
@@ -177,28 +237,12 @@ export async function startTelegramBot() {
       `${admin ? 'You are an admin here. ' : ''}Core commands:\n` +
       `/pair <number> — link a WhatsApp number\n` +
       `/sessions — fleet status\n` +
-      `/help — full command guide`);
+      `/help — full command guide`, { keyboard: mainMenuKeyboard(admin) });
   });
 
   // ── /help ───────────────────────────────────────────────────────────
   bot.onText(/\/help/, async (msg) => {
-    await reply(msg.chat.id,
-      `📚 *${config.botName} Telegram Command Guide*\n\n` +
-      `*Pairing*\n` +
-      `  /pair 233XXXXXXXXX — link a number (admins: code lands right here; others: request goes to admins)\n` +
-      `  /pairapprove [number] — approve a pending request (admin)\n` +
-      `  /pairdeny [number] — deny a pending request (admin)\n` +
-      `  /pairrequests — request queue (admin)\n` +
-      `  /unpair <number> — remove a linked session (admin)\n\n` +
-      `*Fleet*\n` +
-      `  /sessions — every session, live status\n` +
-      `  /reload — reconnect all saved sessions (admin)\n` +
-      `  /logoutall — wipe the whole fleet (owner)\n` +
-      `  /broadcast <text> — send to all groups of all sessions (owner)\n\n` +
-      `*Admin*\n` +
-      `  /addadmin <id> — grant admin (owner)\n` +
-      `  /ping — latency check\n\n` +
-      `All WhatsApp-side NEXORA commands (.menu etc.) work unchanged on every linked number.`);
+    await sendHelpGuide(msg.chat.id, isAdmin(msg.from));
   });
 
   // ── /ping ───────────────────────────────────────────────────────────
@@ -210,24 +254,7 @@ export async function startTelegramBot() {
 
   // ── /sessions ───────────────────────────────────────────────────────
   bot.onText(/\/sessions|\/listpairs/, async (msg) => {
-    const all = listSessions();
-    if (!all.length) {
-      return reply(msg.chat.id, `No linked sessions yet — start one with /pair <number>.`);
-    }
-    const icon = (s) =>
-      s.status === 'online' ? '🟢' :
-      s.status === 'awaiting_code' ? '🔑' :
-      s.status === 'reconnecting' ? '🔄' :
-      s.status === 'starting' ? '⏳' : '🔴';
-    const up = (ts) => ts ? new Date(ts).toISOString().slice(0, 16).replace('T', ' ') : '—';
-    const lines = all.map((s, i) =>
-      `${icon(s)} *${i + 1}. +${s.phone}* — ${s.status}` +
-      (s.name ? ` (${s.name})` : '') +
-      (s.connectedAt ? ` • since ${up(s.connectedAt)} UTC` : '') +
-      (s.lastError && s.status !== 'online' ? `\n      ⚠️ ${s.lastError}` : '')
-    );
-    await reply(msg.chat.id,
-      `📋 *Linked Sessions (${all.length}/${MAX_EXTRA_SESSIONS})*\n\n${lines.join('\n\n')}`);
+    await sendSessionsList(msg.chat.id);
   });
 
   // ── /pair <number> ──────────────────────────────────────────────────
@@ -368,10 +395,51 @@ export async function startTelegramBot() {
 
   // ── Inline keyboard callbacks (Approve / Deny) ───────────────────────
   bot.on('callback_query', async (query) => {
+    const data = query.data || '';
+
+    // ── Navigation buttons (open to everyone; admin-only ones gated) ──
+    if (data.startsWith('nav:')) {
+      const chatId = query.message?.chat?.id;
+      const admin = isAdmin(query.from);
+      const nav = data.slice(4);
+      if (!chatId) return bot.answerCallbackQuery(query.id);
+      await bot.answerCallbackQuery(query.id, { text: 'Loading…' });
+      if (nav === 'sessions') return sendSessionsList(chatId);
+      if (nav === 'help') return sendHelpGuide(chatId, admin);
+      if (nav === 'menu') {
+        return bot.sendMessage(chatId,
+          `⚡ *${config.botName} Control* — main menu`,
+          { parse_mode: 'Markdown', reply_markup: mainMenuKeyboard(admin) });
+      }
+      if (nav === 'pair') {
+        return bot.sendMessage(chatId,
+          admin
+            ? `🔑 *Pair a number*\n\nSend: \`/pair <number>\` — e.g. \`/pair 233533416608\`\nThe pairing code will land right here in this chat.`
+            : `🔑 *Pair a number*\n\nSend: \`/pair <number>\` — e.g. \`/pair 233533416608\`\nYour request goes to the admins for approval.`,
+          { parse_mode: 'Markdown', reply_markup: backKeyboard() });
+      }
+      if (nav === 'reload' || nav === 'requests') {
+        if (!admin) return bot.answerCallbackQuery(query.id, { text: 'Admins only.' });
+        if (nav === 'reload') {
+          const status = await bot.sendMessage(chatId, `🔄 Reconnecting all saved sessions…`);
+          await resumeExtraSessions();
+          return bot.editMessageText(`✅ Saved sessions reconnecting — check Sessions in a minute.`,
+            { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+        }
+        const all = getPairRequests();
+        if (!all.length) return bot.sendMessage(chatId, `No pending pairing requests.`, { reply_markup: backKeyboard() });
+        const lines = all.map((r, i) => `${i + 1}. +${r.phone} — ${r.name || 'unknown'} • filed ${new Date(r.ts).toISOString().slice(11, 16)} UTC`);
+        return bot.sendMessage(chatId,
+          `📋 *Pending Pairing Requests (${all.length})*\n\n${lines.join('\n')}\n\nApprove: \`/pairapprove <number>\` · Deny: \`/pairdeny <number>\``,
+          { parse_mode: 'Markdown', reply_markup: backKeyboard() });
+      }
+      return bot.answerCallbackQuery(query.id);
+    }
+
+    // ── Pairing approval buttons (admins only) ─────────────────────────
     if (!isAdmin(query.from)) {
       return bot.answerCallbackQuery(query.id, { text: 'Admins only.' });
     }
-    const data = query.data || '';
     const approve = data.startsWith('papprove:');
     const deny = data.startsWith('pdeny:');
     if (!approve && !deny) return bot.answerCallbackQuery(query.id);
