@@ -16,7 +16,22 @@ import {
   getLevelProgress,
 } from '../economy/leveling.js';
 import { getDisplayName } from '../lib/displayName.js';
+import { getChatLanguage, getLocalizedResponse } from '../lib/i18n.js';
 import { strikeAndKick, isExempt, isFlooding, resetFlood, snitchRemember } from '../lib/antiGuard.js';
+
+// Compiled antiword patterns, keyed by the raw banned word. Bounded at
+// 500 entries; word lists changing just evicts to the back of the Map.
+const antiwordCache = new Map();
+function antiwordRe(word) {
+  let re = antiwordCache.get(word);
+  if (!re) {
+    const esc = String(word).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    re = new RegExp(`(^|[^\\p{L}])${esc}([^\\p{L}]|$)`, 'iu');
+    if (antiwordCache.size >= 500) antiwordCache.delete(antiwordCache.keys().next().value);
+    antiwordCache.set(word, re);
+  }
+  return re;
+}
 import { isBotName, scoreBotMessage, trackForeignCommand, resetBotTracker } from '../lib/botDetector.js';
 import { rememberDevice } from '../lib/deviceCache.js';
 import { downloadMediaMessage } from 'baileys';
@@ -99,6 +114,21 @@ export async function awardMessageXp(m, sock) {
     // is attached. Without a profile picture the 🎉 line must live in the body.
     if (!ppUrl) bodyLines.unshift(`🎉 *LEVEL UP*`, '');
 
+    // ── Rendered card image first, rich card second, plain text last ──
+    try {
+      const { renderLevelUpCard } = await import('../lib/cardEngine.js');
+      const cardBuf = await renderLevelUpCard({
+        name, avatarUrl: ppUrl, level, rankBadge: badge, coinBonus,
+      });
+      await sock.sendMessage(m.from, {
+        image: cardBuf,
+        caption: `✨ *${name}* just hit *Level ${level}* ${badge}\n🪙 +${coinBonus.toLocaleString()} coins\n_Keep going — the next rank is waiting_`,
+      }, { quoted: m });
+      return;
+    } catch (err) {
+      console.warn('[XP] level-up image card failed, falling back:', err.message);
+    }
+
     try {
       const { default: capabilities } = await import('../core/capabilities.js');
       if (!capabilities.nativeFlow) throw new Error('native flow disabled');
@@ -141,7 +171,7 @@ export async function awardMessageXp(m, sock) {
  */
 async function handleViewOnceRescue(rawMessage, sock, jid, sender) {
   const raw = rawMessage.message || {};
-  const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension']
+  const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV3']
     .find((k) => raw[k]?.message);
   if (!voKey) return;
   const inner = raw[voKey].message;
@@ -169,6 +199,32 @@ async function handleViewOnceRescue(rawMessage, sock, jid, sender) {
       mentions,
     }).catch(() => {});
   }
+}
+
+// ── Production rate limiting ────────────────────────────────────────────────
+// The middleware rateLimiter only guards the executePipeline path;
+// handleMessage (the runtime entry) had NO global ceiling — an attacker
+// could fire dozens of *different* commands per second and only ever hit
+// per-command cooldowns. These sliding windows cap total command volume
+// per user and per chat. Owners are exempt.
+const RATE_LIMIT_STORE = new Map(); // key -> timestamps[]
+const RATE_MAX_USER = 10;   // cmds per window, per user
+const RATE_MAX_CHAT = 20;   // cmds per window, per chat
+const RATE_WINDOW = 10000;  // ms
+
+function checkRateLimit(key, max) {
+  const now = Date.now();
+  const stamps = (RATE_LIMIT_STORE.get(key) || []).filter(t => now - t < RATE_WINDOW);
+  if (stamps.length >= max) return false;
+  stamps.push(now);
+  RATE_LIMIT_STORE.set(key, stamps);
+  // Prune stale keys so the store can't grow forever
+  if (RATE_LIMIT_STORE.size > 1000) {
+    for (const [k, arr] of RATE_LIMIT_STORE) {
+      if (!arr.length || now - arr[arr.length - 1] > RATE_WINDOW) RATE_LIMIT_STORE.delete(k);
+    }
+  }
+  return true;
 }
 
 export async function handleMessage(rawMessage, sock) {
@@ -339,21 +395,22 @@ try {
             const sig       = scoreBotMessage({ pushName: rawMessage.pushName, body, knownCommands: known });
             const streaking = trackForeignCommand(jid, sender, body, known);
 
-            // Identity tier: verified bot NAME — remove immediately. A
-            // behavioral signal alone never instant-kicks (a human pasting
-            // a decorated menu must not lose membership over one message);
-            // behavior is handled by the scored strike below.
+            // Identity tier: bot-style NAME. Names alone are weak
+            // evidence (humans get named "*_MD" too), so this routes
+            // through the shared strike system instead of an instant
+            // kick. Behavioral signals are scored below the same way.
             if (nameHit) {
-              try {
-                await sock.groupParticipantsUpdate(jid, [sender], 'remove');
-                await sock.sendMessage(jid, {
-                  text: `🤖 *Anti-bot* — @${sender.split('@')[0]} was removed. Bot account detected (name: ${rawMessage.pushName}).`,
-                  mentions: [sender],
-                });
-              } catch (_) { /* kick failed — bot not admin; scoring continues */ }
+              // A bot-style name alone is not proof — humans get named
+              // "*_MD" too. Route through the shared strike system so a
+              // false positive costs a warning, not membership.
+              await strikeAndKick(sock, {
+                jid, sender, key: m.key,
+                reason: `bot display name detected ("${rawMessage.pushName}").`,
+              });
               resetBotTracker(jid, sender);
               return;
             }
+
 
             let score = sig.score + (streaking ? 1 : 0);
 
@@ -379,11 +436,10 @@ try {
         }
 
         // ── Anti-word: banned words are deleted ──
+        // Regexes are compiled ONCE per word and cached — compiling a fresh
+        // RegExp for every word on every group message was a CPU hotspot.
         if (guard.antiword?.on && Array.isArray(guard.antiword.words) && guard.antiword.words.length && body) {
-          const hit = guard.antiword.words.find((w) => {
-            const esc = String(w).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            return new RegExp(`(^|[^\\p{L}])${esc}([^\\p{L}]|$)`, 'iu').test(body);
-          });
+          const hit = guard.antiword.words.find((w) => antiwordRe(w).test(body));
           if (hit) {
             await strikeAndKick(sock, { jid, sender, key: m.key, reason: 'banned words are not allowed in this group!' });
             return;
@@ -400,7 +456,7 @@ try {
   // messages. Runs fire-and-forget so it never blocks the pipeline.
   if (isGroupMsg && !m.fromMe && db.getGroup(jid).antiviewonce) {
     const raw = rawMessage.message || {};
-    const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension']
+    const voKey = ['viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV3']
       .find((k) => raw[k]?.message);
     if (voKey) {
       handleViewOnceRescue(rawMessage, sock, jid, sender).catch((err) => {
@@ -512,6 +568,7 @@ try {
     }
 
     // ── "Did you mean?" fuzzy suggestion ──────────────────────────────
+    const lang = getChatLanguage({ db, from: jid, isGroup: isGroupMsg, config });
     // Instead of silently ignoring, suggest the closest command match.
     // When a match is found, send an interactive button so the user can
     // tap to run it directly — no retyping needed.
@@ -520,7 +577,7 @@ try {
     if (suggestion) {
       try {
         await actionCard(sock, jid, {
-          text:   `${getRandomResponse('not_found', `${prefix}${commandName}`)}\n\nDid you mean: *${prefix}${suggestion}*?`,
+          text:   `${getLocalizedResponse('not_found', lang, `${prefix}${commandName}`)}\n\nDid you mean: *${prefix}${suggestion}*?`,
           footer: `${config.botName} • Did you mean?`,
         }, [
           { label: `▶️ Run ${prefix}${suggestion}`, cmd: `${prefix}${suggestion}` },
@@ -528,12 +585,12 @@ try {
         ], { quoted: rawMessage });
       } catch (_) {
         await m.reply(
-          `${getRandomResponse('not_found', `${prefix}${commandName}`)}\n\nDid you mean: *${prefix}${suggestion}*?`
+          `${getLocalizedResponse('not_found', lang, `${prefix}${commandName}`)}\n\nDid you mean: *${prefix}${suggestion}*?`
         );
       }
     } else {
       await m.reply(
-        `${getRandomResponse('not_found', `${prefix}${commandName}`)}\n\nType *${prefix}help* to see all commands, or *${prefix}menu* for the interactive console.`
+        `${getLocalizedResponse('not_found', lang, `${prefix}${commandName}`)}\n\nType *${prefix}help* to see all commands, or *${prefix}menu* for the interactive console.`
       );
     }
     return;
@@ -573,13 +630,15 @@ try {
   // approval commands themselves stay owner-gated.
   if (!publicMode && !ownerCheck && !command.requestable) {
     console.warn(`[CMD-DENY] ${resolvedName}: private_mode — sender ${sender} is not owner`);
-    await m.reply.warn('This bot is running in private mode. Only the owner can use commands.');
+    await m.reply.warn(getLocalizedResponse('private_mode', getChatLanguage({ db, from: jid, isGroup: isGroupMsg, config })));
     return;
   }
 
+  const permLang = getChatLanguage({ db, from: jid, isGroup: isGroupMsg, config });
+
   // 3. Group-only guard
   if (groupOnly && !isGroupMsg) {
-    await m.reply(getRandomResponse('group_only'));
+    await m.reply(getLocalizedResponse('group_only', permLang));
     return;
   }
 
@@ -587,7 +646,7 @@ try {
   if (adminOnly && isGroupMsg) {
     const senderIsAdmin = await m.isAdmin();
     if (!senderIsAdmin && !ownerCheck) {
-      await m.reply(getRandomResponse('permission_denied'));
+      await m.reply(getLocalizedResponse('permission_denied', permLang));
       return;
     }
   }
@@ -603,6 +662,19 @@ try {
 
   // 6. Cooldown enforcement
   const now = Date.now();
+  // Global volume limiter — caps total command throughput per user/chat
+  // (per-command cooldowns alone can be dodged by cycling commands).
+  if (!ownerCheck) {
+    const userOk = checkRateLimit(`u:${sender}`, RATE_MAX_USER);
+    const chatOk = checkRateLimit(`c:${jid}`, RATE_MAX_CHAT);
+    if (!userOk || !chatOk) {
+      try {
+        await m.reply.warn('Easy there — too many commands too fast. Give me a few seconds.');
+      } catch (_) {}
+      return;
+    }
+  }
+
   const cooldownKey = `${sender}_${resolvedName}`;
   const cooldownMs = command.cooldown ?? config.cooldownTime;
   const lastUsed = client.cooldowns.get(cooldownKey);
@@ -677,6 +749,7 @@ try {
   const _replyCountBefore = m._replyCount || 0;
   try {
     await command.execute(ctx);
+    try { client.recordExecution(command.name, false); } catch (_) {}
     console.log(`[CMD] ${command.name} ← ${sender.split('@')[0]} in ${isGroupMsg ? jid : 'DM'}`);
     connectionMonitor.recordCommandExecuted(command.name);
 
@@ -690,7 +763,14 @@ try {
       db.save();
     } catch (_) {}
   } catch (execErr) {
+    try { client.recordExecution(command.name, true); } catch (_) {}
     console.error(`[CMD ERROR] ${command.name} threw:`, execErr.message || execErr);
+    // Per-plugin error hook (client tracks these for lifecycle plugins)
+    if (typeof command.onError === 'function') {
+      try { await command.onError(execErr, ctx); } catch (e) {
+        console.error(`[PLUGIN onError] ${command.name}:`, e.message);
+      }
+    }
     // Only send an error reply if the plugin didn't already send one.
     // This prevents double messages when a plugin catches an error,
     // sends its own m.reply.error(...), then re-throws.
