@@ -397,7 +397,7 @@ export async function renderLevelUpCard(data) {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const MENU_BG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'media', 'brand', 'menu-bg.jpg');
+const MENU_BG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'media', 'brand', process.env.MENU_BG || 'menu-bg-anime.jpg');
 
 export async function renderMenuBanner(data) {
   const W = 1280, H = 720;
