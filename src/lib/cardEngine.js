@@ -388,97 +388,142 @@ export async function renderLevelUpCard(data) {
 }
 
 /**
- * Branded menu header (2026-10): one canvas-rendered banner that every menu
- * style uses by default — replaces the old pool of random AI images with a
- * consistent NEXORA brand header carrying the live bot stats.
+ * Branded menu header v2 (2026-10, owner-directed redesign): premium
+ * AI-rendered NEXORA background (media/brand/menu-bg.jpg) with sharp canvas
+ * typography and live stats composited on top — no random image pools, one
+ * unmistakable brand look for every menu style.
  * data = { botName, version, uptime, totalCommands, users, styleName? }
  */
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const MENU_BG_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'media', 'brand', 'menu-bg.jpg');
+
 export async function renderMenuBanner(data) {
-  const W = 1280, H = 640;
+  const W = 1280, H = 720;
   const canvas = createCanvas(W, H);
   const ctx = canvas.getContext('2d');
-  drawBackground(ctx, W, H);
 
-  // Frosted glass panel
-  ctx.fillStyle = BRAND.glass;
-  roundRect(ctx, 36, 36, W - 72, H - 72, 32);
-  ctx.fill();
-  ctx.strokeStyle = BRAND.stroke;
-  ctx.lineWidth = 2;
-  roundRect(ctx, 36, 36, W - 72, H - 72, 32);
-  ctx.stroke();
+  // ── Layer 1: premium brand background, cover-fit ──────────────────────
+  ctx.fillStyle = BRAND.bg;
+  ctx.fillRect(0, 0, W, H);
+  try {
+    const bg = await loadImage(MENU_BG_PATH);
+    const scale = Math.max(W / bg.width, H / bg.height);
+    ctx.drawImage(bg, (W - bg.width * scale) / 2, (H - bg.height * scale) / 2, bg.width * scale, bg.height * scale);
+  } catch {
+    drawBackground(ctx, W, H); // engine-drawn fallback if the asset is missing
+  }
 
-  // Brand monogram disc with gradient ring
-  const A = 190, ax = 110, ay = (H - A) / 2;
-  ctx.beginPath();
-  ctx.arc(ax + A / 2, ay + A / 2, A / 2 + 10, 0, Math.PI * 2);
+  // ── Layer 2: cinematic vignette for text legibility ────────────────────
+  const veil = ctx.createLinearGradient(0, 0, W, 0);
+  veil.addColorStop(0, 'rgba(7,10,20,0.88)');
+  veil.addColorStop(0.55, 'rgba(7,10,20,0.55)');
+  veil.addColorStop(1, 'rgba(7,10,20,0.18)');
+  ctx.fillStyle = veil;
+  ctx.fillRect(0, 0, W, H);
+  const floor = ctx.createLinearGradient(0, H * 0.55, 0, H);
+  floor.addColorStop(0, 'rgba(7,10,20,0)');
+  floor.addColorStop(1, 'rgba(7,10,20,0.75)');
+  ctx.fillStyle = floor;
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Layer 3: glow monogram badge ──────────────────────────────────────
+  const A = 168, ax = 88, ay = 118;
   const ring = ctx.createLinearGradient(ax, ay, ax + A, ay + A);
   ring.addColorStop(0, BRAND.accentA);
   ring.addColorStop(1, BRAND.accentB);
+  ctx.save();
+  ctx.shadowColor = 'rgba(168,85,247,0.65)';
+  ctx.shadowBlur = 34;
+  ctx.beginPath();
+  ctx.arc(ax + A / 2, ay + A / 2, A / 2, 0, Math.PI * 2);
+  const disc = ctx.createLinearGradient(ax, ay, ax + A, ay + A);
+  disc.addColorStop(0, 'rgba(17,24,39,0.95)');
+  disc.addColorStop(1, 'rgba(7,10,20,0.9)');
+  ctx.fillStyle = disc;
+  ctx.fill();
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(ax + A / 2, ay + A / 2, A / 2, 0, Math.PI * 2);
   ctx.strokeStyle = ring;
-  ctx.lineWidth = 10;
+  ctx.lineWidth = 6;
   ctx.stroke();
-  const mono = await monogramAvatar((data.botName || 'NEXORA'), A, BRAND.accentA);
-  ctx.drawImage(mono.canvas, ax, ay, A, A);
+  const lg = ctx.createLinearGradient(ax, ay, ax + A, ay + A);
+  lg.addColorStop(0, BRAND.accentA);
+  lg.addColorStop(1, BRAND.accentB);
+  ctx.fillStyle = lg;
+  ctx.font = `bold ${Math.round(A * 0.5)}px "DejaVu Sans"`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('N', ax + A / 2, ay + A / 2 + A * 0.02);
 
-  // Wordmark + tagline
-  const rx = ax + A + 56;
-  const name = (data.botName || 'NEXORA-MD').toUpperCase();
-  ctx.textAlign = 'left';
+  // ── Layer 4: wordmark + tagline ───────────────────────────────────────
+  const rx = ax + A + 54;
   ctx.textBaseline = 'alphabetic';
-  const wg = ctx.createLinearGradient(rx, 0, rx + 620, 0);
-  wg.addColorStop(0, BRAND.text);
+  ctx.textAlign = 'left';
+  const name = (data.botName || 'NEXORA-MD').toUpperCase();
+  ctx.save();
+  ctx.shadowColor = 'rgba(168,85,247,0.55)';
+  ctx.shadowBlur = 26;
+  const wg = ctx.createLinearGradient(rx, 0, rx + 640, 0);
+  wg.addColorStop(0, '#ffffff');
+  wg.addColorStop(0.6, '#f1f5f9');
   wg.addColorStop(1, '#c4b5fd');
   ctx.fillStyle = wg;
-  ctx.font = 'bold 92px "DejaVu Sans"';
-  ctx.fillText(name, rx, 218);
+  ctx.font = 'bold 96px "DejaVu Sans"';
+  ctx.fillText(name, rx, 212);
+  ctx.restore();
   ctx.fillStyle = BRAND.subtext;
-  ctx.font = '600 38px "DejaVu Sans"';
-  ctx.fillText('MULTI-SESSION COMMAND ENGINE', rx, 286);
+  ctx.font = '600 36px "DejaVu Sans"';
+  ctx.fillText('MULTI-SESSION COMMAND ENGINE', rx, 276);
 
-  // Gradient rule under the wordmark
-  const rule = ctx.createLinearGradient(rx, 0, rx + 760, 0);
-  rule.addColorStop(0, BRAND.accentA);
-  rule.addColorStop(1, BRAND.accentB);
-  ctx.fillStyle = rule;
-  roundRect(ctx, rx, 322, 760, 6, 3);
-  ctx.fill();
-
-  // Live stat chips
-  const chips = [
-    { k: 'VERSION',   v: `v${data.version || '2.0.0'}` },
-    { k: 'COMMANDS',  v: String(data.totalCommands ?? 0) },
-    { k: 'USERS',     v: String(data.users ?? 0) },
-    { k: 'UPTIME',    v: data.uptime || 'now' },
+  // ── Layer 5: live stats — sleek inline row, no boxes ───────────────────
+  const stats = [
+    ['VERSION', `v${data.version || '2.0.0'}`],
+    ['COMMANDS', String(data.totalCommands ?? 0)],
+    ['USERS', String(data.users ?? 0)],
+    ['UPTIME', data.uptime || 'now'],
   ];
-  if (data.styleName) chips.push({ k: 'MENU', v: String(data.styleName).toUpperCase() });
-
-  let cx = rx;
-  const cy = 400, chW = 224, chH = 130, gap = 18;
-  ctx.font = '600 26px "DejaVu Sans"';
-  for (const chip of chips) {
-    ctx.fillStyle = BRAND.glass;
-    roundRect(ctx, cx, cy, chW, chH, 20);
-    ctx.fill();
-    ctx.strokeStyle = BRAND.stroke;
-    ctx.lineWidth = 2;
-    roundRect(ctx, cx, cy, chW, chH, 20);
-    ctx.stroke();
+  ctx.font = 'bold 44px "DejaVu Sans"';
+  let sx = ax + 6;
+  const sy = 470;
+  for (let i = 0; i < stats.length; i++) {
+    const [k, v] = stats[i];
+    ctx.textAlign = 'left';
+    const sg = ctx.createLinearGradient(sx, sy, sx + 300, sy);
+    sg.addColorStop(0, BRAND.accentA);
+    sg.addColorStop(1, BRAND.accentB);
+    ctx.fillStyle = sg;
+    ctx.fillText(v, sx, sy);
+    const vW = ctx.measureText(v).width;
+    ctx.font = '600 24px "DejaVu Sans"';
     ctx.fillStyle = BRAND.subtext;
-    ctx.textAlign = 'center';
-    ctx.fillText(chip.k, cx + chW / 2, cy + 42);
-    const vg = ctx.createLinearGradient(cx, cy, cx + chW, cy + chH);
-    vg.addColorStop(0, BRAND.accentA);
-    vg.addColorStop(1, BRAND.accentB);
-    ctx.fillStyle = vg;
-    ctx.font = 'bold 40px "DejaVu Sans"';
-    ctx.fillText(String(chip.v).slice(0, 12), cx + chW / 2, cy + 98);
-    ctx.font = '600 26px "DejaVu Sans"';
-    cx += chW + gap;
+    ctx.fillText(k, sx + 2, sy + 34);
+    sx += Math.max(vW, 92) + 44;
+    ctx.font = 'bold 44px "DejaVu Sans"';
+    // thin separator
+    if (i < stats.length - 1) {
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(sx - 26, sy - 34, 2, 62);
+    }
   }
 
-  drawFooter(ctx, W, H, 'MENU');
+  // ── Layer 6: footer strip ──────────────────────────────────────────────
+  const strip = ctx.createLinearGradient(0, 0, W, 0);
+  strip.addColorStop(0, BRAND.accentA);
+  strip.addColorStop(1, BRAND.accentB);
+  ctx.fillStyle = strip;
+  ctx.fillRect(0, H - 8, W, 8);
+  ctx.font = '600 28px "DejaVu Sans"';
+  ctx.fillStyle = 'rgba(248,250,252,0.9)';
+  ctx.textAlign = 'left';
+  ctx.fillText('⚡ NEXORA-MD', ax, H - 52);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = BRAND.subtext;
+  ctx.fillText(data.styleName ? `MENU · ${String(data.styleName).toUpperCase()}` : 'MENU', W - 80, H - 52);
+
   return canvas.toBuffer('image/png');
 }
 
-export default { renderRankCard, renderLevelUpCard, renderMusicCard };
+export default { renderRankCard, renderLevelUpCard, renderMusicCard, renderMenuBanner };
