@@ -2,6 +2,8 @@ import { buildTextMenu } from './formatter.js';
 import { imageManager } from '../images/imageManager.js';
 import { menuManager } from './manager.js';
 import { buildMenuBanner } from '../lib/waUtils.js';
+import { renderMenuBanner } from '../lib/cardEngine.js';
+import brand from '../../config/brand.js';
 
 /**
  * Executes a menu renderer inside a try/catch containment zone.
@@ -93,7 +95,20 @@ export const runWithFallback = async (renderFn, { sock, m, menuData }) => {
       let visual = {};
       try {
         const activeId = menuManager.getActiveMenu()?.id || 1;
-        const imgData  = await imageManager.getMenuImage(activeId);
+        let imgData;
+        try {
+          const bannerBuf = await renderMenuBanner({
+            botName:       menuData.botName,
+            version:       brand.version,
+            uptime:        menuData.uptime,
+            totalCommands: menuData.totalCommands,
+            users:         menuData.users,
+          });
+          imgData = { buffer: bannerBuf, mimetype: 'image/png', thumbnail: bannerBuf, source: null };
+        } catch (bErr) {
+          console.warn('[MENU] branded banner failed in fallback, using image pool:', bErr.message || bErr);
+          imgData = await imageManager.getMenuImage(activeId);
+        }
         visual = buildMenuBanner({
           imgData,
           botName: menuData.botName,

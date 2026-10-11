@@ -387,4 +387,98 @@ export async function renderLevelUpCard(data) {
   return canvas.toBuffer('image/png');
 }
 
+/**
+ * Branded menu header (2026-10): one canvas-rendered banner that every menu
+ * style uses by default — replaces the old pool of random AI images with a
+ * consistent NEXORA brand header carrying the live bot stats.
+ * data = { botName, version, uptime, totalCommands, users, styleName? }
+ */
+export async function renderMenuBanner(data) {
+  const W = 1280, H = 640;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  drawBackground(ctx, W, H);
+
+  // Frosted glass panel
+  ctx.fillStyle = BRAND.glass;
+  roundRect(ctx, 36, 36, W - 72, H - 72, 32);
+  ctx.fill();
+  ctx.strokeStyle = BRAND.stroke;
+  ctx.lineWidth = 2;
+  roundRect(ctx, 36, 36, W - 72, H - 72, 32);
+  ctx.stroke();
+
+  // Brand monogram disc with gradient ring
+  const A = 190, ax = 110, ay = (H - A) / 2;
+  ctx.beginPath();
+  ctx.arc(ax + A / 2, ay + A / 2, A / 2 + 10, 0, Math.PI * 2);
+  const ring = ctx.createLinearGradient(ax, ay, ax + A, ay + A);
+  ring.addColorStop(0, BRAND.accentA);
+  ring.addColorStop(1, BRAND.accentB);
+  ctx.strokeStyle = ring;
+  ctx.lineWidth = 10;
+  ctx.stroke();
+  const mono = await monogramAvatar((data.botName || 'NEXORA'), A, BRAND.accentA);
+  ctx.drawImage(mono.canvas, ax, ay, A, A);
+
+  // Wordmark + tagline
+  const rx = ax + A + 56;
+  const name = (data.botName || 'NEXORA-MD').toUpperCase();
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
+  const wg = ctx.createLinearGradient(rx, 0, rx + 620, 0);
+  wg.addColorStop(0, BRAND.text);
+  wg.addColorStop(1, '#c4b5fd');
+  ctx.fillStyle = wg;
+  ctx.font = 'bold 92px "DejaVu Sans"';
+  ctx.fillText(name, rx, 218);
+  ctx.fillStyle = BRAND.subtext;
+  ctx.font = '600 38px "DejaVu Sans"';
+  ctx.fillText('MULTI-SESSION COMMAND ENGINE', rx, 286);
+
+  // Gradient rule under the wordmark
+  const rule = ctx.createLinearGradient(rx, 0, rx + 760, 0);
+  rule.addColorStop(0, BRAND.accentA);
+  rule.addColorStop(1, BRAND.accentB);
+  ctx.fillStyle = rule;
+  roundRect(ctx, rx, 322, 760, 6, 3);
+  ctx.fill();
+
+  // Live stat chips
+  const chips = [
+    { k: 'VERSION',   v: `v${data.version || '2.0.0'}` },
+    { k: 'COMMANDS',  v: String(data.totalCommands ?? 0) },
+    { k: 'USERS',     v: String(data.users ?? 0) },
+    { k: 'UPTIME',    v: data.uptime || 'now' },
+  ];
+  if (data.styleName) chips.push({ k: 'MENU', v: String(data.styleName).toUpperCase() });
+
+  let cx = rx;
+  const cy = 400, chW = 224, chH = 130, gap = 18;
+  ctx.font = '600 26px "DejaVu Sans"';
+  for (const chip of chips) {
+    ctx.fillStyle = BRAND.glass;
+    roundRect(ctx, cx, cy, chW, chH, 20);
+    ctx.fill();
+    ctx.strokeStyle = BRAND.stroke;
+    ctx.lineWidth = 2;
+    roundRect(ctx, cx, cy, chW, chH, 20);
+    ctx.stroke();
+    ctx.fillStyle = BRAND.subtext;
+    ctx.textAlign = 'center';
+    ctx.fillText(chip.k, cx + chW / 2, cy + 42);
+    const vg = ctx.createLinearGradient(cx, cy, cx + chW, cy + chH);
+    vg.addColorStop(0, BRAND.accentA);
+    vg.addColorStop(1, BRAND.accentB);
+    ctx.fillStyle = vg;
+    ctx.font = 'bold 40px "DejaVu Sans"';
+    ctx.fillText(String(chip.v).slice(0, 12), cx + chW / 2, cy + 98);
+    ctx.font = '600 26px "DejaVu Sans"';
+    cx += chW + gap;
+  }
+
+  drawFooter(ctx, W, H, 'MENU');
+  return canvas.toBuffer('image/png');
+}
+
 export default { renderRankCard, renderLevelUpCard, renderMusicCard };

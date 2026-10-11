@@ -5,6 +5,8 @@ import { imageManager } from '../../images/imageManager.js';
 import { footerManager } from '../../core/footer.js';
 import { toSmallcaps } from '../../lib/smallcaps.js';
 import { buildFakeImageQuote } from '../../lib/waUtils.js';
+import { renderMenuBanner } from '../../lib/cardEngine.js';
+import brand from '../../../config/brand.js';
 import { buildNavigationButton, buildPillButton, buildPillUrlButton, buildPillCopyButton } from './buttonsCard.js';
 
 /**
@@ -30,7 +32,24 @@ export const documentInteractiveMenu = {
   supportedMessages: ['interactiveMessage', 'nativeFlowMessage'],
 
   renderer: async ({ sock, m, menuData }) => {
-    const imgData    = await imageManager.getMenuImage(1);
+    // Branded menu header (2026-10): canvas-rendered NEXORA banner with live
+    // stats replaces the old random-image pool. Falls back to the image
+    // manager (owner-uploaded style images) only if the banner render fails.
+    let imgData;
+    try {
+      const bannerBuf = await renderMenuBanner({
+        botName:       menuData.botName,
+        version:       brand.version,
+        uptime:        menuData.uptime,
+        totalCommands: menuData.totalCommands,
+        users:         menuData.users,
+        styleName:     'interactive',
+      });
+      imgData = { buffer: bannerBuf, mimetype: 'image/png', thumbnail: bannerBuf, source: null };
+    } catch (bErr) {
+      console.warn('[MENU] branded banner failed, using image pool:', bErr.message || bErr);
+      imgData = await imageManager.getMenuImage(1);
+    }
     const footerText = footerManager.getFooter() || `${menuData.botName} \u2502 Uptime: ${menuData.uptime}`;
     const bodyText   = `\u2726 *${toSmallcaps(menuData.botName)}* \u2726\n\n` + buildTextMenu(menuData);
 
