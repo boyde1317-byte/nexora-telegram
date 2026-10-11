@@ -80,7 +80,7 @@ export default {
                     return;
         } catch (err) {
           console.warn('[checkchid] Tier 1 (channel) failed:', err.message);
-          const { replyTable } = await import('../lib/cosmetics.js');
+          const { replyTable } = await import('../../lib/cosmetics.js');
           return await replyTable(m, sock, { caption: '📡 CHANNEL METADATA', rows, footer: `JID: ${meta.id}` });
         }
       }
