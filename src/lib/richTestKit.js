@@ -1321,7 +1321,7 @@ export async function testMoonsonFbCombo(sock, jid, quoted) {
       '🔗 **Link:** https://download.samplelib.com/mp4/sample-5s.mp4'
     )
     .addTip('_Tap the video to play_')
-    .setFooter('© NEXORA-MD by Aizen')
+    .setFooter('© NEXORA-MD by Moonson')
     .send(jid, { quoted });
   return 'Moonson fb combo ✓';
 }

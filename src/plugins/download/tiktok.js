@@ -64,7 +64,7 @@ export default {
             ['Quality', 'No watermark'],
             ['Source', 'TikTok'],
           ],
-          footer: '© NEXORA-MD by Aizen',
+          footer: '© NEXORA-MD by Moonson',
         });
       } catch (err) {
         await m.reply.error(`TikTok download failed: ${err.message}`);

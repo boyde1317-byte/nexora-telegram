@@ -14,7 +14,7 @@
  *   - cta_url contact button (wa.me deep link)
  *
  * Plan data is env-overridable via STORE_PLANS (JSON), defaults mirror
- * Moonson's AizenPanel pricing.
+ * Moonson's panel pricing.
  */
 
 import { Button } from '../../lib/moonsonKit.js';

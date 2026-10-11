@@ -660,7 +660,7 @@ export function buildFakeNewsletterQuote({ newsletterJid, newsletterName, captio
       newsletterAdminInviteMessage: {
         newsletterJid:    newsletterJid || '120363293577041544@newsletter',
         newsletterName:   newsletterName || 'NEXORA-MD Updates',
-        caption:          caption || 'Made with ♥️ By Aizen',
+        caption:          caption || 'Made with ♥️ By Moonson',
         inviteExpiration: Math.floor(Date.now() / 1000) + 86400 * 7,
       },
     },

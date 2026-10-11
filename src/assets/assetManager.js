@@ -11,32 +11,32 @@ const ASSETS_DB_PATH = path.join(process.cwd(), 'database', 'assets.json');
 // and CDN URL fallbacks. The URL fallback is always available — no local files needed.
 export const REQUIRED_AI_ASSETS = {
   menu1: {
-    prompt: 'Professional tech document card background, dark slate background with neon cyan vector geometric lines, abstract, minimalist digital art, featuring the branding text "NEXORA MD" and "By Aizen" clearly, 16:9',
+    prompt: 'Professional tech document card background, dark slate background with neon cyan vector geometric lines, abstract, minimalist digital art, featuring the branding text "NEXORA MD" and "By Moonson" clearly, 16:9',
     targetPath: './media/images/menu/menu1/menu1_generated.jpg',
     defaultUrl: ASSET_URLS.menuBanner,
   },
   menu2: {
-    prompt: 'Premium payment style card background, elegant dark charcoal canvas with luxurious metallic rose gold accents, abstract, minimalist digital art, featuring the branding text "NEXORA MD" and "By Aizen" clearly, 16:9',
+    prompt: 'Premium payment style card background, elegant dark charcoal canvas with luxurious metallic rose gold accents, abstract, minimalist digital art, featuring the branding text "NEXORA MD" and "By Moonson" clearly, 16:9',
     targetPath: './media/images/menu/menu2/menu2_generated.jpg',
     defaultUrl: ASSET_URLS.menuBanner,
   },
   menu3: {
-    prompt: 'Event announcement background, deep purple and ultraviolet glow with floating abstract particles, vibrant, futuristic digital render, featuring the branding text "NEXORA MD" and "By Aizen" clearly, 16:9',
+    prompt: 'Event announcement background, deep purple and ultraviolet glow with floating abstract particles, vibrant, futuristic digital render, featuring the branding text "NEXORA MD" and "By Moonson" clearly, 16:9',
     targetPath: './media/images/menu/menu3/menu3_generated.jpg',
     defaultUrl: ASSET_URLS.menuBanner,
   },
   menu4: {
-    prompt: 'Modern interactive bot dashboard background, clean futuristic glassmorphism interface with dark slate and holographic green highlights, digital art, featuring the branding text "NEXORA MD" and "By Aizen" clearly, 16:9',
+    prompt: 'Modern interactive bot dashboard background, clean futuristic glassmorphism interface with dark slate and holographic green highlights, digital art, featuring the branding text "NEXORA MD" and "By Moonson" clearly, 16:9',
     targetPath: './media/images/menu/menu4/menu4_generated.jpg',
     defaultUrl: ASSET_URLS.menuBanner,
   },
   welcome: {
-    prompt: 'Group welcome banner, welcoming serene nature forest at dawn with majestic glowing mountains, warm golden hour light, beautiful digital illustration, featuring the branding text "NEXORA MD" and "By Aizen" clearly, 16:9',
+    prompt: 'Group welcome banner, welcoming serene nature forest at dawn with majestic glowing mountains, warm golden hour light, beautiful digital illustration, featuring the branding text "NEXORA MD" and "By Moonson" clearly, 16:9',
     targetPath: './media/images/greetings/welcome_generated.jpg',
     defaultUrl: ASSET_URLS.welcome,
   },
   goodbye: {
-    prompt: 'Group goodbye banner, peaceful starry night sky with a warm crescent moon over quiet hills, gentle retro palette, beautiful digital illustration, featuring the branding text "NEXORA MD" and "By Aizen" clearly, 16:9',
+    prompt: 'Group goodbye banner, peaceful starry night sky with a warm crescent moon over quiet hills, gentle retro palette, beautiful digital illustration, featuring the branding text "NEXORA MD" and "By Moonson" clearly, 16:9',
     targetPath: './media/images/greetings/goodbye_generated.jpg',
     defaultUrl: ASSET_URLS.goodbye,
   }

@@ -49,7 +49,7 @@ export default {
                   '🔗 **Link:** ' + best
               )
               .addTip('_Tap the video to play_')
-              .setFooter('© NEXORA-MD by Aizen')
+              .setFooter('© NEXORA-MD by Moonson')
               .send(m.from, { quoted: m });
             return;
           } catch (err) {

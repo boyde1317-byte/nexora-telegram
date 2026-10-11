@@ -97,7 +97,7 @@ export default {
         // ── follow-up info card ───────────────────────────────────────────
         const sent = await mixedCard(sock, m.from, {
           text: `🎵 *${(data.title || 'TikTok Audio').slice(0, 60)}*\n${data.author ? `👤 ${String(data.author).slice(0, 40)}\n` : ''}\n🔊 Extracted from TikTok — no watermark, full quality.`,
-          footer: '© NEXORA-MD by Aizen',
+          footer: '© NEXORA-MD by Moonson',
         }, [
           { kind: 'url',  label: '▶️ Watch Original', value: url },
           { kind: 'copy', label: '📋 Copy Audio Link', value: data.audio || '(extracted locally)' },

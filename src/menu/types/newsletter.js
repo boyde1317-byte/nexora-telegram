@@ -53,7 +53,7 @@ export const newsletterMenu = {
     const newsletterQuote = buildFakeNewsletterQuote({
       newsletterJid:   menuData.channelJid || '120363293577041544@newsletter',
       newsletterName:  `${brand.name} Updates`,
-      caption:         `Made with \u2665\uFE0F By Aizen`,
+      caption:         `Made with \u2665\uFE0F By Moonson`,
     });
 
     // Build embedded externalAdReply
