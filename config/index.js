@@ -202,7 +202,7 @@ const rawConfig = {
 
   // ── Web server ────────────────────────────────────────────────────────────
   server: {
-    port: parseInt(process.env.PORT, 3000),
+    port: parseInt(process.env.PORT, 10) || 3000,
     host: process.env.HOST || '0.0.0.0',
     cors: parseBool(process.env.ENABLE_CORS, false),
   },
