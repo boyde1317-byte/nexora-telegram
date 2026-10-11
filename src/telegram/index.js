@@ -341,7 +341,7 @@ export async function startTelegramBot() {
             cmd('/ping', 'latency check'),
           ].join('\n') + '</blockquote>' },
         { text: '🔐 <b>Community gate</b> — self-pairing requires the number to be in the support group and following the channel:\n👥 ' + esc(SUPPORT_GROUP_LINK) + '\n📣 ' + esc(CHANNEL_LINK) + '\nAdmins keep the direct-pair bypass; approval commands still cover fallback cases.' },
-        { text: 'All WhatsApp-side NEXORA commands (<code>.menu</code> etc.) work unchanged on every linked number.' },
+        { text: '⚡ <b>Major WhatsApp commands</b> — <code>.menu</code> · <code>.rank</code> · <code>.profile</code> · <code>.balance</code> · <code>.daily</code> · <code>.play</code> · <code>.wiki</code> · <code>.ai</code> · <code>.gacha</code> — all work unchanged on every linked number. Full list: <code>.menu</code> on WhatsApp.' },
       ],
       keyboard: mainMenuKeyboard(admin),
     });
@@ -360,10 +360,12 @@ export async function startTelegramBot() {
         { text: 'Anyone can self-pair a number — it just has to be in the <b>support group</b> and following the <b>channel</b> first.' },
         { text: admin ? 'You are an <b>admin</b> here. Core commands:' : 'Core commands:' },
         { text: '<code>/pair &lt;number&gt;</code> — link a WhatsApp number\n<code>/sessions</code> — fleet status\n<code>/help</code> — full command guide' },
+        { text: '⚡ <b>Major WhatsApp commands</b> — they run on every linked number: <code>.menu</code> · <code>.rank</code> · <code>.balance</code> · <code>.daily</code> · <code>.play</code> · <code>.wiki</code> · <code>.ai</code> · <code>.gacha</code>' },
       ],
       keyboard: {
         inline_keyboard: [
           joinFollowRow,
+          [{ text: '⚡ WhatsApp Commands', callback_data: 'nav:cmds' }],
           ...mainMenuKeyboard(admin).inline_keyboard,
         ],
       },
@@ -520,6 +522,23 @@ export async function startTelegramBot() {
       const nav = data.slice(4);
       if (!chatId) return bot.answerCallbackQuery(query.id);
       await bot.answerCallbackQuery(query.id, { text: 'Loading…' });
+      if (nav === 'cmds') {
+        await sendRich(bot, chatId, {
+          title: '⚡ Major WhatsApp Commands',
+          sections: [
+            { text: 'Every linked number runs the full NEXORA engine — these are the headliners. Send them from the WhatsApp side as shown:' },
+            { text: '<b>Core</b>\n<code>.menu</code> — the full 227-plugin command menu\n<code>.ping</code> — latency check\n<code>.alive</code> — heartbeat + uptime\n<code>.profile</code> — your NEXORA profile card' },
+            { text: '<b>Economy &amp; RPG</b>\n<code>.balance</code> — coins &amp; bank\n<code>.daily</code> — daily reward claim\n<code>.work</code> — earn coins\n<code>.shop</code> — spend them\n<code>.slots</code> · <code>.duel</code> · <code>.gacha</code> — gamble &amp; PvP\n<code>.leaderboard</code> — global rankings' },
+            { text: '<b>Media &amp; Info</b>\n<code>.play &lt;song&gt;</code> — music download\n<code>.wiki &lt;topic&gt;</code> — rich Wikipedia cards\n<code>.sticker</code> — make stickers\n<code>.ai &lt;prompt&gt;</code> — the AI suite' },
+          ],
+          footer: 'Full list on WhatsApp: .menu or .menulist — Pairing happens here on Telegram.',
+          keyboard: { inline_keyboard: [
+            joinFollowRow,
+            [{ text: '⬅️ Menu', callback_data: 'nav:menu' }],
+          ] },
+        });
+        return;
+      }
       if (nav === 'sessions') return sendSessionsList(chatId);
       if (nav === 'help') return sendHelpGuide(chatId, admin);
       if (nav === 'menu') {
