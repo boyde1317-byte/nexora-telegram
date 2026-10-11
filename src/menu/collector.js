@@ -6,11 +6,12 @@ import brand from '../../config/brand.js';
 import owner from '../../config/owner.js';
 import { formatUptime } from '../lib/utils.js';
 import { getLevelProgress, rankBadge } from '../economy/leveling.js';
+import { resolveDisplayIdentity } from '../lib/identity.js';
 
 /**
  * Scans the plugin system and database stats to compile a global menu data object
  */
-export const collectMenuData = (sock, m = null) => {
+export const collectMenuData = async (sock, m = null) => {
   const totalCommands = client.commands.size;
   
   // Group commands by category
@@ -64,17 +65,25 @@ export const collectMenuData = (sock, m = null) => {
   };
 
   // ── Requesting user's profile (USER INFO panel, ANYA/OURIN style) ──
+  // Never leak raw JIDs/LIDs: resolve to a human identity (push name →
+  // @username → +number) and, for LID senders, map to the real phone JID
+  // so the economy lookup hits the user's actual record.
   try {
-    const senderJid = m?.sender || m?.key?.participant || null;
-    if (senderJid) {
-      const user = db.getUser(senderJid);
+    const rawSender = m?.sender || m?.key?.participant || null;
+    if (rawSender) {
+      const identity = await resolveDisplayIdentity(sock, rawSender).catch(() => ({}));
+      const economyJid = identity?.phoneJid || rawSender;
+      const user = db.getUser(economyJid);
       const progress = getLevelProgress(user.xp ?? 0);
       const all = Object.values(dbData.users ?? {});
       const position = [...all]
         .sort((a, b) => (b.xp ?? 0) - (a.xp ?? 0))
-        .findIndex((u) => u.jid === senderJid);
+        .findIndex((u) => u.jid === economyJid || u.jid === rawSender);
       data.userInfo = {
-        name: m?.pushName || m?.sender?.split('@')[0] || 'Explorer',
+        name: m?.pushName
+          || (identity?.username ? `@${identity.username}` : null)
+          || (identity?.number ? `+${identity.number}` : null)
+          || 'Explorer',
         level: progress.level,
         badge: rankBadge(progress.level),
         xp: user.xp ?? 0,

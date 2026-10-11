@@ -30,7 +30,11 @@ const CACHE_TTL = 12 * 60 * 60 * 1000; // 12h — usernames rarely change
 function stripDevice(jid) {
   if (!jid || typeof jid !== 'string') return '';
   const at = jid.lastIndexOf('@');
-  const domain = at !== -1 ? jid.slice(at) : '';
+  // Strip a device suffix in EITHER position: "num:7@domain" (usual) or
+  // "num@domain:7" (some event shapes). Without the domain-side strip,
+  // "233@s.whatsapp.net:7" fails the endsWith('@s.whatsapp.net') gate and
+  // real phone numbers resolved as "hidden account (LID)".
+  const domain = at !== -1 ? jid.slice(at).replace(/:\d+$/, '') : '';
   const user = (at !== -1 ? jid.slice(0, at) : jid).split(':')[0].replace(/\.\d+$/, '');
   return domain ? user + domain : user;
 }

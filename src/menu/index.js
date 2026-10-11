@@ -52,7 +52,7 @@ menuManager.register(commandDirectory);
  * @param {string|number} [customKey] - Optional override style key/id
  */
 export const showMenu = async (sock, m, customKey = null) => {
-  const menuData = collectMenuData(sock, m);
+  const menuData = await collectMenuData(sock, m);
 
   const menu = customKey
     ? menuManager.getMenu(customKey)
