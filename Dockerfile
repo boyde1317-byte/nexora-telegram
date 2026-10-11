@@ -25,10 +25,10 @@ COPY . .
 # Ensure session and temp directories exist
 RUN mkdir -p session /tmp/nexora-media
 
-# Create a non-root user and switch to it for security
-RUN groupadd -r botuser && useradd -r -g botuser -d /app botuser && \
-    chown -R botuser:botuser /app
-USER botuser
+# Railway mounts persistent volumes (e.g. /app/data) root-owned, so a
+# non-root USER gets EACCES on mkdir inside the mount. Single-tenant
+# container: run as root like the connect-engine deployment.
+RUN mkdir -p /app/data/session
 
 # Expose the web server port
 EXPOSE 3000
