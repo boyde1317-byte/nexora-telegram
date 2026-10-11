@@ -40,6 +40,7 @@ const DEV_CONTACT = { name: 'DeathCore_Xr', url: 'https://t.me/DeathCore_Xr' };
 const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexora-banner.jpg');
 
 import { config } from '../../config/index.js';
+import { sendRich, renderTable, mdToHtml, esc } from './rich.js';
 import {
   pairSession,
   addPairRequest,
@@ -193,55 +194,72 @@ export async function startTelegramBot() {
       st === 'reconnecting' ? '🔄' :
       st === 'starting' ? '⏳' : '🔴';
     const up = (ts) => ts ? new Date(ts).toISOString().slice(0, 16).replace('T', ' ') : '—';
-    const lines = all.map((sn, i) =>
-      `${icon(sn.status)} *${i + 1}. +${sn.phone}* — ${sn.status}` +
-      (sn.name ? ` (${sn.name})` : '') +
-      (sn.connectedAt ? ` • since ${up(sn.connectedAt)} UTC` : '') +
-      (sn.lastError && sn.status !== 'online' ? `\n      ⚠️ ${sn.lastError}` : '')
-    );
-    await reply(chatId,
-      `📋 *Linked Sessions (${all.length}/${MAX_EXTRA_SESSIONS})*\n\n${lines.join('\n\n')}`,
-      { keyboard: sessionsKeyboard() });
+    const rows = all.map((sn, i) => [
+      String(i + 1),
+      '+' + sn.phone,
+      (sn.name || '—'),
+      `${icon(sn.status)} ${sn.status}`,
+      sn.connectedAt ? up(sn.connectedAt) : '—',
+    ]);
+    const notes = all
+      .filter((sn) => sn.lastError && sn.status !== 'online')
+      .map((sn) => `⚠️ +${sn.phone}: ${esc(sn.lastError)}`);
+    await sendRich(bot, chatId, {
+      title: `📋 Linked Sessions (${all.length}/${MAX_EXTRA_SESSIONS})`,
+      sections: [
+        { table: { headers: ['#', 'Number', 'Name', 'Status', 'Since UTC'], rows } },
+        ...(notes.length ? [{ text: notes.join('\n') }] : []),
+      ],
+      keyboard: sessionsKeyboard(),
+    });
   }
 
   async function sendHelpGuide(chatId, admin) {
-    return reply(chatId,
-      `📚 *${config.botName} Telegram Command Guide*\n\n` +
-      `*Pairing*\n` +
-      `  /pair 233XXXXXXXXX — link a number (admins: code lands right here; others: request goes to admins)\n` +
-      `  /pairapprove [number] — approve a pending request (admin)\n` +
-      `  /pairdeny [number] — deny a pending request (admin)\n` +
-      `  /pairrequests — request queue (admin)\n` +
-      `  /unpair <number> — remove a linked session (admin)\n\n` +
-      `*Fleet*\n` +
-      `  /sessions — every session, live status\n` +
-      `  /reload — reconnect all saved sessions (admin)\n` +
-      `  /logoutall — wipe the whole fleet (owner)\n` +
-      `  /broadcast <text> — send to all groups of all sessions (owner)\n\n` +
-      `*Admin*\n` +
-      `  /addadmin <id> — grant admin (owner)\n` +
-      `  /ping — latency check\n\n` +
-      `All WhatsApp-side NEXORA commands (.menu etc.) work unchanged on every linked number.`,
-      { keyboard: mainMenuKeyboard(admin) });
+    const cmd = (syntax, desc) => `<code>${esc(syntax)}</code> — ${esc(desc)}`;
+    return sendRich(bot, chatId, {
+      title: `📚 ${config.botName} Telegram Command Guide`,
+      sections: [
+        { heading: '🔑 Pairing', text:
+          '<blockquote>' + [
+            cmd('/pair 233XXXXXXXXX', 'link a number (admins: code lands right here; others: request goes to admins)'),
+            cmd('/pairapprove [number]', 'approve a pending request (admin)'),
+            cmd('/pairdeny [number]', 'deny a pending request (admin)'),
+            cmd('/pairrequests', 'request queue (admin)'),
+            cmd('/unpair <number>', 'remove a linked session (admin)'),
+          ].join('\n') + '</blockquote>' },
+        { heading: '🚀 Fleet', text:
+          '<blockquote>' + [
+            cmd('/sessions', 'every session, live status'),
+            cmd('/reload', 'reconnect all saved sessions (admin)'),
+            cmd('/logoutall', 'wipe the whole fleet (owner)'),
+            cmd('/broadcast <text>', 'send to all groups of all sessions (owner)'),
+          ].join('\n') + '</blockquote>' },
+        { heading: '🛡 Admin', text:
+          '<blockquote>' + [
+            cmd('/addadmin <id>', 'grant admin (owner)'),
+            cmd('/ping', 'latency check'),
+          ].join('\n') + '</blockquote>' },
+        { text: 'All WhatsApp-side NEXORA commands (<code>.menu</code> etc.) work unchanged on every linked number.' },
+      ],
+      keyboard: mainMenuKeyboard(admin),
+    });
   }
 
   // ── /start ──────────────────────────────────────────────────────────
   bot.onText(/\/start/, async (msg) => {
     const name = msg.from?.first_name || 'there';
     const admin = isAdmin(msg.from);
-    // Branded banner first (best-effort; never blocks the welcome text)
-    try {
-      await bot.sendPhoto(msg.chat.id, BANNER_PATH);
-    } catch (err) {
-      console.warn('[TG] banner photo failed, continuing:', err.message);
-    }
-    await reply(msg.chat.id,
-      `⚡ *Welcome to ${config.botName} Control, ${name}!*\n\n` +
-      `This is the Telegram command deck for your NEXORA WhatsApp multi-session fleet — up to *${MAX_EXTRA_SESSIONS} linked numbers*, each running the full NEXORA engine.\n\n` +
-      `${admin ? 'You are an admin here. ' : ''}Core commands:\n` +
-      `/pair <number> — link a WhatsApp number\n` +
-      `/sessions — fleet status\n` +
-      `/help — full command guide`, { keyboard: mainMenuKeyboard(admin) });
+    // One native photo card: banner + caption + inline menu, single message
+    await sendRich(bot, msg.chat.id, {
+      image: BANNER_PATH,
+      title: `⚡ Welcome to ${config.botName} Control, ${name}!`,
+      sections: [
+        { text: `Telegram command deck for your NEXORA WhatsApp multi-session fleet — up to <b>${MAX_EXTRA_SESSIONS} linked numbers</b>, each running the full NEXORA engine.` },
+        { text: admin ? 'You are an <b>admin</b> here. Core commands:' : 'Core commands:' },
+        { text: '<code>/pair &lt;number&gt;</code> — link a WhatsApp number\n<code>/sessions</code> — fleet status\n<code>/help</code> — full command guide' },
+      ],
+      keyboard: mainMenuKeyboard(admin),
+    });
   });
 
   // ── /help ───────────────────────────────────────────────────────────
