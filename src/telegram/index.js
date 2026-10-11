@@ -42,6 +42,7 @@ const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexo
 import { config } from '../../config/index.js';
 import { sendRich, renderTable, esc } from './rich.js';
 import { verifyPairingGate, SUPPORT_GROUP_LINK, CHANNEL_LINK } from './gate.js';
+import { MAJOR_COMMANDS, runWhatsAppCommand, attachBot } from './commander.js';
 import {
   pairSession,
   addPairRequest,
@@ -252,6 +253,7 @@ export async function startTelegramBot() {
   }
 
   bot = new TelegramBot(token, { polling: true });
+  attachBot(bot);
   registerTelegramSender(tgSend);
   if (ownerId) setTelegramOwnerChat(ownerId);
 
@@ -347,6 +349,54 @@ export async function startTelegramBot() {
     });
   }
 
+  // ── Functional WhatsApp-side commands (admin-gated) ────────────────
+  // Dedicated slash commands for the majors + a generic /cmd runner.
+  // They execute the REAL engine plugins as the main session's account,
+  // with output routed natively to this chat. Non-admins are refused.
+  const refuseNonAdmin = async (chatId) => {
+    await sendRich(bot, chatId, {
+      title: '🔒 Admins only',
+      sections: [
+        { text: 'Engine commands run as the owner\u2019s linked number — economy, XP, and cooldowns all hit the real account. They are reserved for admins.\nYou can still self-pair: /pair <number> after joining the group and following the channel.' },
+      ],
+      keyboard: { inline_keyboard: [joinFollowRow] },
+    });
+  };
+
+  // Slash surface for majors: /rank, /balance, /wiki <topic>, /ai <prompt>, …
+  const majorPattern = new RegExp(`^\\/(?:cmd|${MAJOR_COMMANDS.join('|')})(?:\\s+(.*))?$`, 'i');
+  bot.onText(majorPattern, async (msg, match) => {
+    const chatId = msg.chat.id;
+    if (!isAdmin(msg.from)) return refuseNonAdmin(chatId);
+    const invoked = (match[0].split(/\s+/)[0] || '').slice(1).toLowerCase();
+    const name = invoked === 'cmd' ? 'cmd' : invoked;
+    const rest = match[1] || '';
+    const argList = rest.trim() ? rest.trim().split(/\s+/) : [];
+    if (name === 'cmd') {
+      const target = argList.shift();
+      if (!target) {
+        return sendRich(bot, chatId, {
+          title: '🧩 Run any engine command',
+          sections: [
+            { text: 'Usage: <code>/cmd &lt;command&gt; [args]</code> — e.g. <code>/cmd wiki Jupiter</code>\nRuns the real WhatsApp-side plugin as your linked number.\nMajors also have direct shortcuts: <code>/rank</code>, <code>/balance</code>, <code>/daily</code>, <code>/ai</code>…' },
+          ],
+          keyboard: { inline_keyboard: [joinFollowRow, [{ text: '⚡ WhatsApp Commands', callback_data: 'nav:cmds' }]] },
+        });
+      }
+      const res = await runWhatsAppCommand(chatId, target, argList);
+      if (res.message) return reply(chatId, res.message);
+      return;
+    }
+    // .ai with no prompt / .wiki with no topic etc. get engine usage text
+    const res = await runWhatsAppCommand(chatId, name, argList);
+    if (res.message) return reply(chatId, res.message);
+  });
+
+  // Tap-to-run buttons (wc:<name>) on the WhatsApp Commands card
+  if (!bot._wcHandler) {
+    bot._wcHandler = true;
+  }
+
   // ── /start ──────────────────────────────────────────────────────────
   bot.onText(/\/start/, async (msg) => {
     const name = msg.from?.first_name || 'there';
@@ -360,7 +410,7 @@ export async function startTelegramBot() {
         { text: 'Anyone can self-pair a number — it just has to be in the <b>support group</b> and following the <b>channel</b> first.' },
         { text: admin ? 'You are an <b>admin</b> here. Core commands:' : 'Core commands:' },
         { text: '<code>/pair &lt;number&gt;</code> — link a WhatsApp number\n<code>/sessions</code> — fleet status\n<code>/help</code> — full command guide' },
-        { text: '⚡ <b>Major WhatsApp commands</b> — they run on every linked number: <code>.menu</code> · <code>.rank</code> · <code>.balance</code> · <code>.daily</code> · <code>.play</code> · <code>.wiki</code> · <code>.ai</code> · <code>.gacha</code>' },
+        { text: '⚡ <b>Major WhatsApp commands</b> — admins run them right here: <code>/rank</code> · <code>/balance</code> · <code>/daily</code> · <code>/shop</code> · <code>/wiki &lt;topic&gt;</code> · <code>/play &lt;song&gt;</code> · <code>/ai &lt;prompt&gt;</code> · <code>/gacha</code> — same engine, same account' },
       ],
       keyboard: {
         inline_keyboard: [
@@ -375,13 +425,6 @@ export async function startTelegramBot() {
   // ── /help ───────────────────────────────────────────────────────────
   bot.onText(/\/help/, async (msg) => {
     await sendHelpGuide(msg.chat.id, isAdmin(msg.from));
-  });
-
-  // ── /ping ───────────────────────────────────────────────────────────
-  bot.onText(/\/ping/, async (msg) => {
-    const start = Date.now();
-    await bot.sendMessage(msg.chat.id, `🏓 Pong!`);
-    await bot.sendMessage(msg.chat.id, `⚡ Round-trip: *${Date.now() - start}ms*`, { parse_mode: 'Markdown' });
   });
 
   // ── /sessions ───────────────────────────────────────────────────────
@@ -506,6 +549,18 @@ export async function startTelegramBot() {
   bot.on('callback_query', async (query) => {
     const data = query.data || '';
 
+    // ── Engine command tap-run buttons (admin-gated) ──────────────────
+    if (data.startsWith('wc:')) {
+      const chatId = query.message?.chat?.id;
+      const name = data.slice(3);
+      if (!chatId) return bot.answerCallbackQuery(query.id);
+      if (!isAdmin(query.from)) return bot.answerCallbackQuery(query.id, { text: 'Admins only.' });
+      await bot.answerCallbackQuery(query.id, { text: `Running .${name}…` });
+      const res = await runWhatsAppCommand(chatId, name, []);
+      if (res.message) return bot.sendMessage(chatId, res.message, { parse_mode: 'Markdown' });
+      return;
+    }
+
     // ── Community-gate recheck button ─────────────────────────────────
     if (data.startsWith('recheck:')) {
       const phone = normalizePhone(data.slice(8));
@@ -531,9 +586,12 @@ export async function startTelegramBot() {
             { text: '<b>Economy &amp; RPG</b>\n<code>.balance</code> — coins &amp; bank\n<code>.daily</code> — daily reward claim\n<code>.work</code> — earn coins\n<code>.shop</code> — spend them\n<code>.slots</code> · <code>.duel</code> · <code>.gacha</code> — gamble &amp; PvP\n<code>.leaderboard</code> — global rankings' },
             { text: '<b>Media &amp; Info</b>\n<code>.play &lt;song&gt;</code> — music download\n<code>.wiki &lt;topic&gt;</code> — rich Wikipedia cards\n<code>.sticker</code> — make stickers\n<code>.ai &lt;prompt&gt;</code> — the AI suite' },
           ],
-          footer: 'Full list on WhatsApp: .menu or .menulist — Pairing happens here on Telegram.',
+          footer: '⚡ Admins: tap to run, or type /rank, /balance, /wiki &lt;topic&gt;, /ai &lt;prompt&gt;, /cmd &lt;any engine command&gt;. Full list: .menu on WhatsApp.',
           keyboard: { inline_keyboard: [
             joinFollowRow,
+            [{ text: '⚡ Run .rank', callback_data: 'wc:rank' }, { text: '💰 Run .balance', callback_data: 'wc:balance' }],
+            [{ text: '🎁 Run .daily', callback_data: 'wc:daily' }, { text: '🏆 Run .leaderboard', callback_data: 'wc:leaderboard' }],
+            [{ text: '🧩 Run .menu', callback_data: 'wc:menu' }, { text: '👤 Run .profile', callback_data: 'wc:profile' }],
             [{ text: '⬅️ Menu', callback_data: 'nav:menu' }],
           ] },
         });
