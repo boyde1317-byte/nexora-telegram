@@ -125,6 +125,86 @@ function floodOk(userId) {
   return true;
 }
 
+
+  // ── Community-gate UI — join/follow buttons used across the panel ──
+  const gateButtons = (phone) => ({
+    inline_keyboard: [
+      [{ text: '👥 Join Support Group', url: SUPPORT_GROUP_LINK }],
+      [{ text: '📣 Follow Channel', url: CHANNEL_LINK }],
+      [{ text: '✅ I’ve joined both — check again', callback_data: `recheck:${phone}` }],
+    ],
+  });
+  const joinFollowRow = [
+    { text: '👥 Join Support Group', url: SUPPORT_GROUP_LINK },
+    { text: '📣 Follow Channel', url: CHANNEL_LINK },
+  ];
+
+  /**
+   * Full self-service pairing flow behind the community gate. Shared by
+   * /pair and the `recheck:` callback button. `editMessage` (optional)
+   * reuses an existing status message instead of sending a new one.
+   */
+  async function runCommunityGate(chatId, phone, { from, editMessage } = {}) {
+    const edit = (text, extra = {}) =>
+      editMessage
+        ? bot.editMessageText(text, { chat_id: chatId, message_id: editMessage.message_id, parse_mode: 'Markdown', ...extra })
+        : bot.sendMessage(chatId, text, { parse_mode: 'Markdown', ...extra });
+
+    let status = editMessage;
+    if (!status) {
+      status = await bot.sendMessage(chatId, `⏳ Checking *+${phone}* against the support group and channel…`, { parse_mode: 'Markdown' });
+    }
+
+    let gate;
+    try {
+      gate = await verifyPairingGate(phone);
+    } catch (err) {
+      gate = { pass: null, note: err?.message || String(err) };
+    }
+
+    // Not through the gate — show the join/follow buttons and a recheck button
+    if (gate.pass === false) {
+      const missing = [];
+      if (!gate.groupOk) missing.push('the support group');
+      if (!gate.channelOk) missing.push('the channel');
+      return edit(
+        `🔒 *+${phone} isn't through the community gate yet.*\n\n` +
+        `You must join *both* first — still missing: ${missing.join(' and ')}.\n` +
+        `Tap the buttons below, then press *check again*.`,
+        { reply_markup: gateButtons(phone) });
+    }
+
+    // Technical failure — degrade to the admin approval queue (gating intact)
+    if (gate.pass === null) {
+      try {
+        const { req } = addPairRequest(phone, {
+          dmJid: telegramJid(chatId),
+          chatJid: telegramJid(chatId),
+          name: from?.first_name || from?.username || 'unknown',
+        });
+        await edit(
+          `⚠️ Couldn't verify the community gate right now (${gate.note || 'verification unavailable'}). ` +
+          `Your request for *+${req.phone}* went to the admin queue instead — you'll be approved shortly.`);
+        await notifyAdminsOfRequest(req, from);
+      } catch (err) {
+        await edit(`❌ *Request rejected:* ${err.message || err}`);
+      }
+      return;
+    }
+
+    // Gate passed — pair directly, code delivered to THIS chat
+    try {
+      await pairSession(phone, { notifyJid: telegramJid(chatId) });
+      await edit(
+        `🔌 *Pairing channel open for +${phone}.*\n\n` +
+        `${gate.advisory ? '(Channel follow could not be confirmed — counted on trust.)\n\n' : ''}` +
+        `The code arrives in the next message — enter it on that phone within a couple of minutes:\n` +
+        `WhatsApp → Settings → Linked Devices → Link a Device → *Link with phone number instead*.`);
+    } catch (err) {
+      await edit(`❌ *Pairing failed:* ${err.message || err}`);
+    }
+  }
+
 /** Push a pairing-request card to every admin with Approve/Deny buttons.
  *  Used by the /pair fallback path when the community gate can't verify. */
 async function notifyAdminsOfRequest(req, from) {
@@ -281,7 +361,12 @@ export async function startTelegramBot() {
         { text: admin ? 'You are an <b>admin</b> here. Core commands:' : 'Core commands:' },
         { text: '<code>/pair &lt;number&gt;</code> — link a WhatsApp number\n<code>/sessions</code> — fleet status\n<code>/help</code> — full command guide' },
       ],
-      keyboard: mainMenuKeyboard(admin),
+      keyboard: {
+        inline_keyboard: [
+          joinFollowRow,
+          ...mainMenuKeyboard(admin).inline_keyboard,
+        ],
+      },
     });
   });
 
@@ -308,12 +393,14 @@ export async function startTelegramBot() {
     const raw = match?.[1];
 
     if (!raw) {
-      return reply(chatId,
-        `📱 *Link a WhatsApp number*\n\n` +
-        `Usage: \`/pair 233XXXXXXXXX\`\n\n` +
-        `Include the country code, no + or spaces.\n\n` +
-        `Anyone can self-pair — the number just has to be in the support group and following the channel first:\n` +
-        `👥 ${SUPPORT_GROUP_LINK}\n📣 ${CHANNEL_LINK}`);
+      return sendRich(bot, chatId, {
+        title: '📱 Link a WhatsApp number',
+        sections: [
+          { text: 'Usage: <code>/pair 233XXXXXXXXX</code> — include the country code, no + or spaces.' },
+          { text: 'Anyone can self-pair — no admin approval. But the number must join <b>both</b> first:' },
+        ],
+        keyboard: { inline_keyboard: [joinFollowRow, [{ text: '❓ Help', callback_data: 'nav:help' }]] },
+      });
     }
 
     const phone = normalizePhone(raw);
@@ -349,61 +436,10 @@ export async function startTelegramBot() {
     }
 
     // ── Everyone else: self-service pairing behind the community gate ──
-    // No admin approval needed — the WhatsApp number just has to be in the
-    // support group and following the channel. If verification is
-    // temporarily impossible (no live session / API hiccup), fall back to
-    // the admin-approval request queue so pairing never dead-ends.
-    const status = await bot.sendMessage(chatId, `⏳ Checking *+${phone}* against the support group and channel…`, { parse_mode: 'Markdown' });
-    let gate;
-    try {
-      gate = await verifyPairingGate(phone);
-    } catch (err) {
-      gate = { pass: null, note: err?.message || String(err) };
-    }
-
-    if (gate.pass === false) {
-      const missing = [];
-      if (!gate.groupOk) missing.push(`👥 Join the support group:\n${SUPPORT_GROUP_LINK}`);
-      if (!gate.channelOk) missing.push(`📣 Follow the channel:\n${CHANNEL_LINK}`);
-      return bot.editMessageText(
-        `🔒 *+${phone} isn't through the community gate yet.*\n\n` +
-        `${missing.join('\n\n')}\n\nOnce you've joined and followed, run /pair ${phone} again.`,
-        { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
-    }
-
-    if (gate.pass === null) {
-      // Technical failure — degrade to the admin approval queue (gating intact)
-      try {
-        const { req } = addPairRequest(raw, {
-          dmJid: telegramJid(chatId),
-          chatJid: telegramJid(chatId),
-          name: msg.from?.first_name || msg.from?.username || 'unknown',
-        });
-        await bot.editMessageText(
-          `⚠️ Couldn't verify the community gate right now (${gate.note || 'verification unavailable'}). ` +
-          `Your request for *+${req.phone}* went to the admin queue instead — you'll be approved shortly.`,
-          { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
-        await notifyAdminsOfRequest(req, msg.from);
-      } catch (err) {
-        await bot.editMessageText(`❌ *Request rejected:* ${err.message || err}`,
-          { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
-      }
-      return;
-    }
-
-    // Gate passed — pair directly, code delivered to THIS chat
-    try {
-      await pairSession(phone, { notifyJid: telegramJid(chatId) });
-      await bot.editMessageText(
-        `🔌 *Pairing channel open for +${phone}.*\n\n` +
-        `${gate.advisory ? '(Channel follow could not be confirmed — counted on trust.)\n\n' : ''}` +
-        `The code arrives in the next message — enter it on that phone within a couple of minutes:\n` +
-        `WhatsApp → Settings → Linked Devices → Link a Device → *Link with phone number instead*.`,
-        { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
-    } catch (err) {
-      await bot.editMessageText(`❌ *Pairing failed:* ${err.message || err}`,
-        { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
-    }
+    // No admin approval needed — the WhatsApp number must be in the support
+    // group AND following the channel first. Admin approval queue is only
+    // the fallback when verification is technically impossible.
+    await runCommunityGate(chatId, phone, { from: msg.from });
   });
 
   // ── /pairrequests ───────────────────────────────────────────────────
@@ -468,6 +504,15 @@ export async function startTelegramBot() {
   bot.on('callback_query', async (query) => {
     const data = query.data || '';
 
+    // ── Community-gate recheck button ─────────────────────────────────
+    if (data.startsWith('recheck:')) {
+      const phone = normalizePhone(data.slice(8));
+      const chatId = query.message?.chat?.id;
+      if (!chatId || !phone) return bot.answerCallbackQuery(query.id);
+      await bot.answerCallbackQuery(query.id, { text: 'Checking both again…' });
+      return runCommunityGate(chatId, phone, { from: query.from, editMessage: query.message });
+    }
+
     // ── Navigation buttons (open to everyone; admin-only ones gated) ──
     if (data.startsWith('nav:')) {
       const chatId = query.message?.chat?.id;
@@ -486,8 +531,8 @@ export async function startTelegramBot() {
         return bot.sendMessage(chatId,
           admin
             ? `🔑 *Pair a number*\n\nSend: \`/pair <number>\` — e.g. \`/pair 233533416608\`\nThe pairing code will land right here in this chat.`
-            : `🔑 *Pair a number*\n\nSend: \`/pair <number>\` — e.g. \`/pair 233533416608\`\nYour request goes to the admins for approval.`,
-          { parse_mode: 'Markdown', reply_markup: backKeyboard() });
+            : `🔑 *Pair a number*\n\nSend: \`/pair <number>\` — e.g. \`/pair 233533416608\`\nNo admin approval needed — just join the group and follow the channel first (buttons below).`,
+          { parse_mode: 'Markdown', reply_markup: { inline_keyboard: [joinFollowRow, [{ text: '⬅️ Menu', callback_data: 'nav:menu' }]] } });
       }
       if (nav === 'reload' || nav === 'requests') {
         if (!admin) return bot.answerCallbackQuery(query.id, { text: 'Admins only.' });
