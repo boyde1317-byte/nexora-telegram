@@ -5,11 +5,12 @@ import { config } from '../../config/index.js';
 import brand from '../../config/brand.js';
 import owner from '../../config/owner.js';
 import { formatUptime } from '../lib/utils.js';
+import { getLevelProgress, rankBadge } from '../economy/leveling.js';
 
 /**
  * Scans the plugin system and database stats to compile a global menu data object
  */
-export const collectMenuData = (sock) => {
+export const collectMenuData = (sock, m = null) => {
   const totalCommands = client.commands.size;
   
   // Group commands by category
@@ -43,7 +44,7 @@ export const collectMenuData = (sock) => {
 
   const uptimeSeconds = process.uptime();
 
-  return {
+  const data = {
     botName: brand.name,
     ownerName: owner.ownerName,
     ownerNumber: (config.owner[0] || '').replace(/[^0-9]/g, ''),
@@ -61,6 +62,33 @@ export const collectMenuData = (sock) => {
     // Channel pill (top of menu card): set via .channel create or .setchannel
     channelPill: getChannelPill(),
   };
+
+  // ── Requesting user's profile (USER INFO panel, ANYA/OURIN style) ──
+  try {
+    const senderJid = m?.sender || m?.key?.participant || null;
+    if (senderJid) {
+      const user = db.getUser(senderJid);
+      const progress = getLevelProgress(user.xp ?? 0);
+      const all = Object.values(dbData.users ?? {});
+      const position = [...all]
+        .sort((a, b) => (b.xp ?? 0) - (a.xp ?? 0))
+        .findIndex((u) => u.jid === senderJid);
+      data.userInfo = {
+        name: m?.pushName || m?.sender?.split('@')[0] || 'Explorer',
+        level: progress.level,
+        badge: rankBadge(progress.level),
+        xp: user.xp ?? 0,
+        xpToNext: progress.xpToNextLevel,
+        coins: user.coins ?? 0,
+        streak: user.streak ?? 0,
+        position: position >= 0 ? position + 1 : null,
+      };
+    }
+  } catch (err) {
+    console.warn('[MENU] user profile panel skipped:', err.message || err);
+  }
+
+  return data;
 };
 
 export default collectMenuData;

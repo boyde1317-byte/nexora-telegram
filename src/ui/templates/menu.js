@@ -1,28 +1,54 @@
-import { themeManager } from '../themeManager.js';
 import { layoutConfig } from '../../../config/layout.js';
 import brand from '../../../config/brand.js';
 import owner from '../../../config/owner.js';
 import { toSmallcaps } from '../../lib/smallcaps.js';
+import { getGreeting } from '../../menu/formatter.js';
 
 /**
- * Menu template builder.
+ * Menu template builder — ANYA/OURIN-inspired layout pass (2026-10).
  *
- * Design rule (2026-09-18 layout pass, owner-directed): command NAMES
- * only, ONE COMMAND PER LINE, grouped by category with UPPERCASE
- * category headers — no descriptions, no inline comma-wrapping. The
- * inline `a, b, c` wrapping read as an unreadable blob on real
- * devices; a per-line directory scans instantly. Detailed help lives
- * in `.help <command>`; the menu is a directory, not documentation.
+ * What changed vs. the old flat directory: the menu now opens with the
+ * brand panel, greets the caller by name, and shows their live NEXORA
+ * profile (level, badge, XP, coins, streak, global rank position) in a
+ * boxed panel — the layout language users loved in ANYA-MD and OURIN MD:
  *
- * Kept: themed borders, smallcaps typographic identity, per-category
- * section headers with counts, stat header, and the placeholder system.
+ *   ╭─「 ✦ header 」─⬣
+ *   │ ✦ key : value
+ *   ╰─⬣
+ *
+ * Preserved from the 2026-09-18 design rule: command NAMES only, ONE
+ * COMMAND PER LINE, UPPERCASE category headers. The menu is a directory,
+ * not documentation — detailed help stays in `.help <command>`.
  */
+
+/** Per-category emoji identity (OURIN-style visual anchors). */
+const CATEGORY_EMOJI = {
+  owner: '👑', general: '🏠', utility: '🔧', group: '👥',
+  economy: '💰', rpg: '⚔️', games: '🎯', fun: '🎮',
+  ai: '🤖', media: '🎬', download: '📥', web: '🌐',
+  anime: '🍥', channel: '📣', logomaker: '🎨', nsfw: '🔞',
+  greetings: '👋', newsletter: '📰', info: 'ℹ️', unknown: '✦',
+};
+
+const emojiFor = (cat) => CATEGORY_EMOJI[cat] || CATEGORY_EMOJI.unknown;
+
+/** Aligned key : value row for the info panels. */
+const row = (key, value) => {
+  const k = toSmallcaps(key).padEnd(10, ' ');
+  return `│ ✦ ${k}: *${value}*`;
+};
+
+/** A boxed panel: ╭─「 title 」─⬣ … ╰─⬣ */
+const box = (title, lines) => {
+  const out = [`╭─「 ${title}」─⬣`];
+  out.push(...lines);
+  out.push('╰─⬣');
+  return out;
+};
+
 export const menuTemplate = (menuData) => {
-  const borders = themeManager.getBorders();
-  const styleName = themeManager.getTheme();
   const bulletIcon = layoutConfig.icons.bullet;
 
-  // Compile dynamic variables
   const now = new Date();
   const replacements = {
     '{botName}': menuData.botName || brand.name,
@@ -30,9 +56,9 @@ export const menuTemplate = (menuData) => {
     '{runtime}': menuData.runtime || menuData.uptime || '0s',
     '{commands}': menuData.totalCommands || '0',
     '{version}': brand.version,
-    '{date}': now.toLocaleDateString(),
-    '{time}': now.toLocaleTimeString(),
-    '{prefix}': menuData.prefix || '.'
+    '{date}': now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    '{time}': now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+    '{prefix}': menuData.prefix || '.',
   };
 
   const parseText = (rawText) => {
@@ -43,61 +69,60 @@ export const menuTemplate = (menuData) => {
     return text;
   };
 
-  const formattedLines = [];
+  const lines = [];
 
-  // ── Header ───────────────────────────────────────────────────────────
-  if (styleName === 'minimal') {
-    formattedLines.push(`── {botName} ──`);
-    formattedLines.push(` Owner: {owner} · v{version} · Up: {runtime}`);
-    formattedLines.push(` Prefix: {prefix} · Commands: {commands}`);
-  } else if (styleName === 'classic') {
-    formattedLines.push(`┏━━━━━━━━━━━━━━━━━━━━━━━━`);
-    formattedLines.push(`┃  ✦ {botName} ✦`);
-    formattedLines.push(`┃  {owner} · v{version} · Up: {runtime}`);
-    formattedLines.push(`┃  Prefix: {prefix} · Commands: {commands}`);
-    formattedLines.push(`┣━━━━━━━━━━━━━━━━━━━━━━━━`);
-  } else {
-    // Modern — one compact stat block, no double-spacing
-    formattedLines.push(`${borders.topLeft}✦ {botName} ✦`);
-    formattedLines.push(`${borders.line} Owner: {owner} · v{version} · Up: {runtime}`);
-    formattedLines.push(`${borders.line} Prefix: {prefix} · {commands} ${toSmallcaps('commands')}`);
+  // ── Brand + greeting ─────────────────────────────────────────────────
+  lines.push(`✦ *${toSmallcaps(menuData.botName || '{botName}')}* ✦`);
+  const greeting = getGreeting();
+  const userName = menuData.userInfo?.name || 'Commander';
+  lines.push(`${greeting}, *${userName}* — pick your category below.`);
+
+  // ── BOT INFO panel ───────────────────────────────────────────────────
+  lines.push('');
+  lines.push(...box('🤖 *ʙᴏᴛ ɪɴꜰᴏ*', [
+    row('Version', `v{version}`),
+    row('Prefix', `[ {prefix} ]`),
+    row('Uptime', '{runtime}'),
+    row('Commands', `{commands} ${toSmallcaps('total')}`),
+    row('Users', (menuData.users || 1).toLocaleString()),
+    row('Owner', '{owner}'),
+  ]));
+
+  // ── USER INFO panel (personal, ANYA-style) ──────────────────────────
+  const u = menuData.userInfo;
+  if (u) {
+    lines.push('');
+    const userRows = [
+      row('Level', `${u.level} ${u.badge ? `(${u.badge})` : ''}`),
+      row('XP', `${u.xp.toLocaleString()} · ${u.xpToNext.toLocaleString()} ${toSmallcaps('to next')}`),
+      row('Coins', `${(u.coins || 0).toLocaleString()} 🪙`),
+    ];
+    if (u.streak) userRows.push(row('Streak', `${u.streak} ${toSmallcaps('day')}${u.streak !== 1 ? 's' : ''} 🔥`));
+    if (u.position) userRows.push(row('Rank', `#${u.position} ${toSmallcaps('global')}`));
+    userRows.push(row('Date', '{date} · {time}'));
+    lines.push(...box('👤 *ᴜsᴇʀ ɪɴꜰᴏ*', userRows));
   }
 
-  // ── Categories: header + inline name rows ────────────────────────────
+  // ── Category directory (one command per line, per design rule) ───────
   const sortedCategories = Object.keys(menuData.categories).sort();
   let catIndex = 0;
   for (const cat of sortedCategories) {
     catIndex++;
     const cmds = menuData.categories[cat];
-    const names = cmds.map(c => `${menuData.prefix || '.'}${c.name}`);
-    const header = cat.toUpperCase();
-
-    if (styleName === 'minimal') {
-      formattedLines.push('');
-      formattedLines.push(`── ${header} (${cmds.length}) ──`);
-      names.forEach(n => formattedLines.push(n));
-    } else if (styleName === 'classic') {
-      formattedLines.push(`┃  ✦ ${header} · ${cmds.length}`);
-      names.forEach(n => formattedLines.push(`${borders.line} ${n}`));
-    } else {
-      formattedLines.push(`${borders.divider}✦ ${String(catIndex).padStart(2, '0')} · ${header} · ${cmds.length}`);
-      names.forEach(n => formattedLines.push(`${borders.line} ${n}`));
-    }
+    const header = `${emojiFor(cat)} *${cat.toUpperCase()}* · ${cmds.length}`;
+    lines.push('');
+    lines.push(`╭─「 ${header}」─⬣`);
+    cmds.forEach((c) => lines.push(`│ ${bulletIcon} {prefix}${c.name}`));
+    lines.push('╰─⬣');
   }
 
   // ── Footer ───────────────────────────────────────────────────────────
-  formattedLines.push('');
-  if (styleName === 'classic') {
-    formattedLines.push(`┃  ${toSmallcaps('Powered by')} ✦ {botName} ✦`);
-    formattedLines.push(`┗━━━━━━━━━━━━━━━━━━━━━━━━`);
-  } else if (styleName === 'minimal') {
-    formattedLines.push(`Powered by ✦ {botName} ✦`);
-  } else {
-    formattedLines.push(`${borders.bottomLeft}── ${toSmallcaps('Powered by')} ✦ {botName} ✦ ──`);
-  }
+  lines.push('');
+  lines.push(`╰─ ${toSmallcaps('Powered by')} ✦ *${toSmallcaps(menuData.botName || brand.name)}* ✦ ─⬣`);
+  lines.push(`_Detailed help: {prefix}help <command> · Style picker: {prefix}setmenu_`);
 
   // Apply placeholders and clean anti-spam spacing/broken characters
-  return parseText(formattedLines.join('\n'));
+  return parseText(lines.join('\n'));
 };
 
 export default menuTemplate;
