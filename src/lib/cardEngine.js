@@ -40,6 +40,11 @@ const TIER_COLORS = {
   Bronze: '#d97706',
 };
 
+function formatUptime(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  return h > 24 ? `${Math.floor(h / 24)}d ${h % 24}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
 function tierColor(level) {
   const r = rankInfo(level);
   return TIER_COLORS[r.label] ?? BRAND.accentA;
@@ -483,7 +488,7 @@ export async function renderMenuBanner(data) {
     ['VERSION', `v${data.version || '2.0.0'}`],
     ['COMMANDS', String(data.totalCommands ?? 0)],
     ['USERS', String(data.users ?? 0)],
-    ['UPTIME', data.uptime || 'now'],
+    ['UPTIME', data.uptime || formatUptime(process.uptime())],
   ];
   ctx.font = 'bold 44px "DejaVu Sans"';
   let sx = ax + 6;
