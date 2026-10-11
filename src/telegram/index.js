@@ -40,7 +40,8 @@ const DEV_CONTACT = { name: 'DeathCore_Xr', url: 'https://t.me/DeathCore_Xr' };
 const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexora-banner.jpg');
 
 import { config } from '../../config/index.js';
-import { sendRich, renderTable, mdToHtml, esc } from './rich.js';
+import { sendRich, renderTable, esc } from './rich.js';
+import { verifyPairingGate, SUPPORT_GROUP_LINK, CHANNEL_LINK } from './gate.js';
 import {
   pairSession,
   addPairRequest,
@@ -122,6 +123,26 @@ function floodOk(userId) {
   rec.n += 1;
   if (rec.n > 6) return false;
   return true;
+}
+
+/** Push a pairing-request card to every admin with Approve/Deny buttons.
+ *  Used by the /pair fallback path when the community gate can't verify. */
+async function notifyAdminsOfRequest(req, from) {
+  const adminIds = new Set([
+    String(process.env.TELEGRAM_OWNER_ID || ''),
+    ...(process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((s) => s.trim()),
+    ...readAdmins(),
+  ].filter(Boolean));
+  const card = `📶 *PAIRING REQUEST*\n\nNumber: +${req.phone}\nRequested by: ${from?.first_name || from?.username || 'unknown'}\n\nApproving sends the pairing code to the requester's chat. Requests expire after ~15 minutes.`;
+  const keyboard = {
+    inline_keyboard: [[
+      { text: '✅ Approve', callback_data: `papprove:${req.phone}` },
+      { text: '❌ Deny', callback_data: `pdeny:${req.phone}` },
+    ]],
+  };
+  for (const adminId of adminIds) {
+    try { await bot.sendMessage(adminId, clip(card), { parse_mode: 'Markdown', reply_markup: keyboard }); } catch (_) {}
+  }
 }
 
 /** The send function the bridge uses for all core notifications. */
@@ -221,7 +242,7 @@ export async function startTelegramBot() {
       sections: [
         { heading: '🔑 Pairing', text:
           '<blockquote>' + [
-            cmd('/pair 233XXXXXXXXX', 'link a number (admins: code lands right here; others: request goes to admins)'),
+            cmd('/pair 233XXXXXXXXX', 'link a number — self-service for everyone, no admin approval needed'),
             cmd('/pairapprove [number]', 'approve a pending request (admin)'),
             cmd('/pairdeny [number]', 'deny a pending request (admin)'),
             cmd('/pairrequests', 'request queue (admin)'),
@@ -239,6 +260,7 @@ export async function startTelegramBot() {
             cmd('/addadmin <id>', 'grant admin (owner)'),
             cmd('/ping', 'latency check'),
           ].join('\n') + '</blockquote>' },
+        { text: '🔐 <b>Community gate</b> — self-pairing requires the number to be in the support group and following the channel:\n👥 ' + esc(SUPPORT_GROUP_LINK) + '\n📣 ' + esc(CHANNEL_LINK) + '\nAdmins keep the direct-pair bypass; approval commands still cover fallback cases.' },
         { text: 'All WhatsApp-side NEXORA commands (<code>.menu</code> etc.) work unchanged on every linked number.' },
       ],
       keyboard: mainMenuKeyboard(admin),
@@ -255,6 +277,7 @@ export async function startTelegramBot() {
       title: `⚡ Welcome to ${config.botName} Control, ${name}!`,
       sections: [
         { text: `Telegram command deck for your NEXORA WhatsApp multi-session fleet — up to <b>${MAX_EXTRA_SESSIONS} linked numbers</b>, each running the full NEXORA engine.` },
+        { text: 'Anyone can self-pair a number — it just has to be in the <b>support group</b> and following the <b>channel</b> first.' },
         { text: admin ? 'You are an <b>admin</b> here. Core commands:' : 'Core commands:' },
         { text: '<code>/pair &lt;number&gt;</code> — link a WhatsApp number\n<code>/sessions</code> — fleet status\n<code>/help</code> — full command guide' },
       ],
@@ -288,8 +311,9 @@ export async function startTelegramBot() {
       return reply(chatId,
         `📱 *Link a WhatsApp number*\n\n` +
         `Usage: \`/pair 233XXXXXXXXX\`\n\n` +
-        `Include the country code, no + or spaces.\n` +
-        `Admins pair instantly — the code arrives right here. Others file a request for admin approval.`);
+        `Include the country code, no + or spaces.\n\n` +
+        `Anyone can self-pair — the number just has to be in the support group and following the channel first:\n` +
+        `👥 ${SUPPORT_GROUP_LINK}\n📣 ${CHANNEL_LINK}`);
     }
 
     const phone = normalizePhone(raw);
@@ -324,37 +348,62 @@ export async function startTelegramBot() {
       return;
     }
 
-    // ── Everyone else: file a request, admins get an inline card ──
-    let req;
+    // ── Everyone else: self-service pairing behind the community gate ──
+    // No admin approval needed — the WhatsApp number just has to be in the
+    // support group and following the channel. If verification is
+    // temporarily impossible (no live session / API hiccup), fall back to
+    // the admin-approval request queue so pairing never dead-ends.
+    const status = await bot.sendMessage(chatId, `⏳ Checking *+${phone}* against the support group and channel…`, { parse_mode: 'Markdown' });
+    let gate;
     try {
-      ({ req } = addPairRequest(raw, {
-        dmJid: telegramJid(chatId),
-        chatJid: telegramJid(chatId),
-        name: msg.from?.first_name || msg.from?.username || 'unknown',
-      }));
+      gate = await verifyPairingGate(phone);
     } catch (err) {
-      return reply(chatId, `❌ *Request rejected:* ${err.message || err}`);
+      gate = { pass: null, note: err?.message || String(err) };
     }
 
-    // Notify every admin with an Approve/Deny inline keyboard.
-    const adminIds = new Set([ownerId, ...(process.env.TELEGRAM_ADMIN_IDS || '').split(',').map((s) => s.trim()), ...readAdmins()].filter(Boolean));
-    const card = `📶 *PAIRING REQUEST*\n\nNumber: +${req.phone}\nRequested by: ${msg.from?.first_name || msg.from?.username || 'unknown'}\n\nApproving sends the pairing code to the requester's chat. Requests expire after ~15 minutes.`;
-    const keyboard = {
-      inline_keyboard: [[
-        { text: '✅ Approve', callback_data: `papprove:${req.phone}` },
-        { text: '❌ Deny', callback_data: `pdeny:${req.phone}` },
-      ]],
-    };
-    let delivered = false;
-    for (const adminId of adminIds) {
-      try {
-        await bot.sendMessage(adminId, clip(card), { parse_mode: 'Markdown', reply_markup: keyboard });
-        delivered = true;
-      } catch (_) {}
+    if (gate.pass === false) {
+      const missing = [];
+      if (!gate.groupOk) missing.push(`👥 Join the support group:\n${SUPPORT_GROUP_LINK}`);
+      if (!gate.channelOk) missing.push(`📣 Follow the channel:\n${CHANNEL_LINK}`);
+      return bot.editMessageText(
+        `🔒 *+${phone} isn't through the community gate yet.*\n\n` +
+        `${missing.join('\n\n')}\n\nOnce you've joined and followed, run /pair ${phone} again.`,
+        { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
     }
-    await reply(chatId, delivered
-      ? `📨 *Request filed for +${req.phone}.* Admins were notified — once approved, the pairing code arrives here.`
-      : `📨 *Request filed for +${req.phone}.* It's in the queue — an admin will act on it via /pairrequests.`);
+
+    if (gate.pass === null) {
+      // Technical failure — degrade to the admin approval queue (gating intact)
+      try {
+        const { req } = addPairRequest(raw, {
+          dmJid: telegramJid(chatId),
+          chatJid: telegramJid(chatId),
+          name: msg.from?.first_name || msg.from?.username || 'unknown',
+        });
+        await bot.editMessageText(
+          `⚠️ Couldn't verify the community gate right now (${gate.note || 'verification unavailable'}). ` +
+          `Your request for *+${req.phone}* went to the admin queue instead — you'll be approved shortly.`,
+          { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+        await notifyAdminsOfRequest(req, msg.from);
+      } catch (err) {
+        await bot.editMessageText(`❌ *Request rejected:* ${err.message || err}`,
+          { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+      }
+      return;
+    }
+
+    // Gate passed — pair directly, code delivered to THIS chat
+    try {
+      await pairSession(phone, { notifyJid: telegramJid(chatId) });
+      await bot.editMessageText(
+        `🔌 *Pairing channel open for +${phone}.*\n\n` +
+        `${gate.advisory ? '(Channel follow could not be confirmed — counted on trust.)\n\n' : ''}` +
+        `The code arrives in the next message — enter it on that phone within a couple of minutes:\n` +
+        `WhatsApp → Settings → Linked Devices → Link a Device → *Link with phone number instead*.`,
+        { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+    } catch (err) {
+      await bot.editMessageText(`❌ *Pairing failed:* ${err.message || err}`,
+        { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+    }
   });
 
   // ── /pairrequests ───────────────────────────────────────────────────
