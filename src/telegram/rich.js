@@ -50,13 +50,13 @@ export function mdToHtml(text) {
   const fences = [];
   let work = src.replace(/```([\s\S]*?)```/g, (_, body) => {
     fences.push(`<pre>${esc(body.replace(/^\n|\n$/g, ''))}</pre>`);
-    return `\u0000${fences.length - 1}\u0000`;
+    return `%%FENCE${fences.length - 1}%%`;
   });
   work = esc(work)
     .replace(/\*([^*\n]+)\*/g, '<b>$1</b>')
     .replace(/(^|[^A-Za-z0-9_])_([^_\n]+)_(?![A-Za-z0-9_])/g, '$1<i>$2</i>')
     .replace(/`([^`\n]+)`/g, '<code>$1</code>');
-  work = work.replace(/\u0000(\d+)\u0000/g, (_, i) => fences[Number(i)]);
+  work = work.replace(/%%FENCE(\d+)%%/g, (_, i) => fences[Number(i)]);
   return work;
 }
 
