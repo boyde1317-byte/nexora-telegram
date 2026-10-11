@@ -46,32 +46,10 @@ export async function handleGroupParticipantsUpdate(update, sock) {
         const isBotSelf = pNum === botSelf
           || getLinkedBotPhones().some((x) => String(x).split('@')[0].split(':')[0] === pNum);
         if (isBotSelf && action === 'add') {
-          try {
-            let meta = null;
-            try { meta = await sock.groupMetadata(groupJid); } catch (_) { /* non-fatal */ }
-            const intro =
-              `✦ *I'm in.*\n\n` +
-              `Hey${meta?.subject ? ` *${meta.subject}*` : ' everyone'} — NEXORA-MD just landed in this group.\n\n` +
-              `Here's the 10-second tour:\n` +
-              `• \`.menu\` — every command, swipeable\n` +
-              `• \`.groupsettings\` — Protection Hub & group config\n` +
-              `• \`.remind 30m <text>\` — reminders that survive restarts\n\n` +
-              `_Group admins can tune everything with \`.groupsettings\`._`;
-            try {
-              if (capabilities.richResponse) {
-                await mixedCard(sock, groupJid, { text: intro, footer: 'NEXORA-MD' }, [
-                  { kind: 'action', label: '📖 Menu', cmd: '.menu' },
-                  { kind: 'action', label: '🛡️ Protection Hub', cmd: '.groupsettings' },
-                ]);
-              } else {
-                await sock.sendMessage(groupJid, { text: intro });
-              }
-            } catch (_) {
-              await sock.sendMessage(groupJid, { text: intro }).catch(() => {});
-            }
-          } catch (err) {
-            console.warn('[GROUP] bot intro card failed:', err.message || err);
-          }
+          // Silent join policy (2026-10): the bot says NOTHING when added
+          // to a group — no intro card, no tour, no menu spam. Group admins
+          // discover commands via .help when they want them.
+          console.log(`[GROUP] bot joined ${groupJid} silently (quiet-join policy)`);
           continue; // no greeting/anti gates for our own join
         }
 

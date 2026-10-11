@@ -9,6 +9,10 @@ export const greetingManager = {
   async handleJoin(sock, jid, userJid) {
     await greetingRenderer.renderAndSend({ sock, jid, userJid, isWelcome: true });
 
+    // Milestones only fire in groups that opted into welcome greetings —
+    // silent-by-default groups stay silent.
+    if (!greetingRenderer._isGreetingEnabled(jid, true)) return;
+
     // Celebrate membership milestones (10, 50, 100, 500 …)
     try {
       const metadata = await sock.groupMetadata(jid);

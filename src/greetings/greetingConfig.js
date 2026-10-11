@@ -4,9 +4,12 @@ import { assetManager } from '../assets/assetManager.js';
 
 const GREETING_DB_PATH = path.join(process.cwd(), 'database', 'greeting.json');
 
+// Quiet defaults (2026-10): a freshly added bot stays SILENT in groups.
+// Greeting only happens where a group admin explicitly opted in with
+// `.welcome on` (per-group flag wins over this global default anyway).
 const defaultGreetingConfig = {
-  enabled: true,
-  goodbyeEnabled: true,
+  enabled: false,
+  goodbyeEnabled: false,
   style: 4,
   welcomeText: "👋 Welcome {user} to *{group}*!\n\nWe are glad to have you here. You are our {memberCount}th member! ✨",
   goodbyeText: "😢 Goodbye {user}! We will miss you.",
@@ -29,7 +32,19 @@ export const greetingConfig = {
     try {
       ensureConfigExists();
       const content = fs.readFileSync(GREETING_DB_PATH, 'utf-8');
-      return { ...defaultGreetingConfig, ...JSON.parse(content) };
+      const data = { ...defaultGreetingConfig, ...JSON.parse(content) };
+
+      // One-time quiet migration (2026-10): flip the legacy global
+      // enabled:true default to OFF. Per-group `.welcome on` flags are
+      // unaffected (they win over the global in the renderer) — this only
+      // silences groups that never opted in.
+      if (!data.quietMigrationV1) {
+        data.quietMigrationV1 = true;
+        if (data.enabled === true) data.enabled = false;
+        if (data.goodbyeEnabled === true) data.goodbyeEnabled = false;
+        this.save(data);
+      }
+      return data;
     } catch (err) {
       console.error('[GREETING CONFIG] Load failed, returning defaults:', err);
       return defaultGreetingConfig;
