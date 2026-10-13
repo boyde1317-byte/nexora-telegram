@@ -193,4 +193,11 @@ export const db = {
 
 db.startAutoSave();
 
+// Runtime publisher for the .richmode kill-switch: capabilities.richResponse
+// reads this WITHOUT importing db.js (avoids a module cycle). Reads the
+// live settings object on every access, so .richmode toggles apply instantly.
+Object.assign(globalThis, {
+  richModeRuntime: () => db?.data?.settings?.richMode,
+});
+
 export default db;

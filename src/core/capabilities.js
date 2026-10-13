@@ -92,7 +92,20 @@ export const capabilities = {
   quizPoll:             hasQuizPoll,
 
   // ── Rich response / AI badge ─────────────────────────────────────────────
-  richResponse:         hasRichResp,
+  // hasRichResp is the static fork verdict; the runtime .richmode owner
+  // toggle (db settings.richMode) acts as a global kill-switch. Some
+  // WhatsApp clients refuse to reveal unsigned rich payloads ("can't
+  // verify the security of this media") — OFF drops every send to the
+  // proven plain tiers (ASCII tables, text cards) instantly.
+  get richResponse() {
+    if (!hasRichResp) return false;
+    try {
+      const { richModeRuntime } = globalThis;
+      return !richModeRuntime || richModeRuntime() !== 'off';
+    } catch {
+      return true;
+    }
+  },
 
   // ── Spoiler / group status ───────────────────────────────────────────────
   spoilerMessage:       hasSpoiler,
