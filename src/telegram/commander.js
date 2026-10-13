@@ -25,6 +25,7 @@ import { db } from '../database/db.js';
 import { config } from '../../config/index.js';
 import { telegramJid, sendToTelegramChat } from './bridge.js';
 import { mdToHtml } from './rich.js';
+import { hasRichPayload, renderRichToTelegram } from './richInbound.js';
 
 /** The Telegram bot instance — injected at boot via attachBot(). */
 let bot = null;
@@ -70,6 +71,17 @@ function makeProxySock(chatId, realSock, fromJid) {
       && (target.startsWith('tg:') || target === fromJid);
     if (!isTgTarget) return realSock.sendMessage(target, content);
     if (!bot) return pushText(chatId, content?.text || '');
+
+    // WhatsApp rich-response payload (tables, code, galleries, LaTeX image
+    // content…) → translate to native Telegram output instead of losing it.
+    if (hasRichPayload(content)) {
+      const ok = await renderRichToTelegram(bot, chatId, content).catch((e) => {
+        console.warn('[TG-CMD] rich payload translation failed:', e?.message || e);
+        return false;
+      });
+      if (ok) return;
+      // fall through to the simple content routing below
+    }
     try {
       if (content?.image != null) {
         return bot.sendPhoto(chatId, content.image, {
