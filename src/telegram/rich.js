@@ -140,7 +140,7 @@ export async function sendRich(bot, chatId, content = {}) {
       return await bot.sendPhoto(chatId, image, {
         caption,
         parse_mode: 'HTML',
-        ...(keyboard ? { reply_markup: keyboard } : {}),
+        ...(markup ? { reply_markup: markup } : {}),
       });
     } catch (err) {
       // absent asset or Telegram hiccup — degrade to a text card, never fail

@@ -42,7 +42,7 @@ const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexo
 import { config } from '../../config/index.js';
 import { sendRich, renderTable, esc } from './rich.js';
 import { verifyPairingGate, SUPPORT_GROUP_LINK, CHANNEL_LINK } from './gate.js';
-import { MAJOR_COMMANDS, runWhatsAppCommand, attachBot } from './commander.js';
+import { MAJOR_COMMANDS, runWhatsAppCommand, runPendingAction, attachBot } from './commander.js';
 import {
   pairSession,
   addPairRequest,
@@ -548,6 +548,21 @@ export async function startTelegramBot() {
   // ── Inline keyboard callbacks (Approve / Deny) ───────────────────────
   bot.on('callback_query', async (query) => {
     const data = query.data || '';
+
+    // ── Picker-row tap-run buttons (admin-gated) ──────────────────────
+    // Rows of interactive cards translated by the commander proxy carry a
+    // pending-action id instead of the full command (callback_data is capped
+    // at 64 bytes). Run the parked engine command with its arguments.
+    if (data.startsWith('wcr:')) {
+      const chatId = query.message?.chat?.id;
+      const id = data.slice(4);
+      if (!chatId) return bot.answerCallbackQuery(query.id);
+      if (!isAdmin(query.from)) return bot.answerCallbackQuery(query.id, { text: 'Admins only.' });
+      await bot.answerCallbackQuery(query.id, { text: 'Running…' });
+      const res = await runPendingAction(chatId, id);
+      if (res.message) return bot.sendMessage(chatId, res.message, { parse_mode: 'Markdown' });
+      return;
+    }
 
     // ── Engine command tap-run buttons (admin-gated) ──────────────────
     if (data.startsWith('wc:')) {

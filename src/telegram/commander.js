@@ -24,7 +24,7 @@ import { client } from '../core/client.js';
 import { db } from '../database/db.js';
 import { config } from '../../config/index.js';
 import { telegramJid, sendToTelegramChat } from './bridge.js';
-import { mdToHtml } from './rich.js';
+import { mdToHtml, esc, sendRich, buildKeyboard } from './rich.js';
 import { messageFormatter } from '../ui/messageFormatter.js';
 import { hasRichPayload, renderRichToTelegram } from './richInbound.js';
 
@@ -40,6 +40,36 @@ export const MAJOR_COMMANDS = [
 ];
 
 export function attachBot(instance) { bot = instance; }
+
+/**
+ * Pending picker actions (wcr:) — inline-keyboard buttons can only carry
+ * 64 bytes of callback_data, and a picker row's command (`.play <youtube
+ * url>`) is longer than that. So the translation layer parks the full
+ * command string here under a short id and the keyboard button carries
+ * `wcr:<id>`. Bounded at 200 entries; pickers are ephemeral anyway.
+ */
+const pendingActions = new Map();
+let pendingSeq = 0;
+
+export function registerPendingAction(cmd) {
+  const id = String(++pendingSeq);
+  pendingActions.set(id, String(cmd).replace(/^\./, ''));
+  if (pendingActions.size > 200) {
+    pendingActions.delete(pendingActions.keys().next().value);
+  }
+  return id;
+}
+
+/** Run a parked picker action on behalf of the tapping admin. */
+export async function runPendingAction(chatId, id) {
+  const cmdStr = pendingActions.get(String(id));
+  if (!cmdStr) {
+    return { ok: false, message: '⌛ That picker expired — run the command again.' };
+  }
+  const [name, ...args] = cmdStr.trim().split(/\s+/);
+  if (!name) return { ok: false, message: '⌛ That picker expired — run the command again.' };
+  return runWhatsAppCommand(chatId, name, args);
+}
 
 /** Cooldown bookkeeping reuses the engine's own cooldown table. */
 function enforceCooldown(chatId, command) {
@@ -59,6 +89,108 @@ function enforceCooldown(chatId, command) {
 async function pushText(chatId, text) {
   if (!text) return;
   await sendToTelegramChat(chatId, mdToHtml(String(text)), { parseMode: 'HTML' });
+}
+
+/**
+ * Button spec (flat or baileys shape) → Telegram inline button, or null
+ * when the type has no sensible Telegram equivalent.
+ */
+function toTelegramButton(btn) {
+  const label = (btn.text || btn.displayText || btn.buttonText?.displayText || '').trim();
+  if (!label) return null;
+  if (btn.url) return { text: label, url: btn.url };
+  const id = btn.id || btn.buttonId || '';
+  if (/^https?:\/\//i.test(id)) return { text: label, url: id };
+  if (id && id !== 'select_menu' && id !== 'noop') {
+    // quick_reply style: id is the command to run on tap (`.play <url>`)
+    return { text: label, callback: `wcr:${registerPendingAction(id)}` };
+  }
+  return null;
+}
+
+/**
+ * Extract the plain-text fallback from any relayed interactive payload.
+ */
+function relayFallbackText(content) {
+  return content?.buttonsMessage?.contentText
+    || content?.interactiveMessage?.body?.text
+    || content?.text
+    || '';
+}
+
+/**
+ * Translate a WhatsApp interactive payload (selectMenu's buttonsMessage or a
+ * relayed interactiveMessage) into a native Telegram card: numbered option
+ * list in the body plus a tappable inline keyboard. Never throws — degrades
+ * to plain text.
+ */
+export async function renderButtonsCard(chatId, content) {
+  const bm = content?.buttonsMessage;
+  const im = content?.interactiveMessage;
+  if (!bm && !im) return pushText(chatId, relayFallbackText(content));
+
+  const bodyLines = [];
+  const buttons = [];
+  let n = 0;
+
+  const pushRow = (row, params) => {
+    n += 1;
+    // selectMenu rows often ship their own "1." numbering in the title —
+    // strip it so it doesn't double up with ours.
+    const title = String(row.title || 'Option').replace(/^\d+\.\s*/, '');
+    bodyLines.push(
+      `<b>${n}.</b> ${esc(title)}` +
+      (row.description ? `\n    <i>${esc(row.description)}</i>` : '')
+    );
+    if (n <= 10 && row.id != null) {
+      buttons.push({ text: `${n} ${title}`.slice(0, 60), callback: `wcr:${registerPendingAction(row.id)}` });
+    }
+    return n;
+  };
+
+  for (const btn of (bm?.buttons || [])) {
+    if (btn.nativeFlowInfo?.name === 'single_select') {
+      try {
+        const params = JSON.parse(btn.nativeFlowInfo.paramsJson || '{}');
+        for (const section of params.sections || []) {
+          for (const row of section.rows || []) pushRow(row, params);
+        }
+      } catch (_) { console.warn('[TG-CMD] unparseable picker paramsJson — listing options only'); }
+      continue;
+    }
+    const tb = toTelegramButton(btn);
+    if (tb) buttons.push(tb);
+  }
+
+  // Relayed interactiveMessage — the fork packs its buttons under
+  // nativeFlowMessage with JSON-encoded params per button type.
+  for (const btn of (im?.nativeFlowMessage?.buttons || [])) {
+    const params = (() => { try { return JSON.parse(btn.buttonParamsJson || '{}'); } catch (_) { return null; } })();
+    if (btn.name === 'single_select' && params) {
+      for (const section of params.sections || []) {
+        for (const row of section.rows || []) pushRow(row, params);
+      }
+    } else if (btn.name === 'quick_reply' && params) {
+      const tb = toTelegramButton({ text: params.displayText || '', id: params.data || '' });
+      if (tb) buttons.push(tb);
+    }
+  }
+
+  const sections = [];
+  const header = [bm?.locationMessage?.name, bm?.locationMessage?.address]
+    .filter(Boolean).join(' • ');
+  if (bm && header) sections.push({ text: `<b>${esc(header)}</b>` });
+  if (im?.header?.title) sections.push({ text: `<b>${esc(im.header.title)}</b>` });
+  if (bm?.contentText) sections.push({ text: mdToHtml(bm.contentText) });
+  if (im?.body?.text) sections.push({ text: mdToHtml(im.body.text) });
+  if (bodyLines.length) sections.push({ text: bodyLines.join('\n') });
+
+  return await sendRich(bot, chatId, {
+    image: bm?.locationMessage?.jpegThumbnail || null,
+    sections,
+    footer: bm?.footerText || im?.footer?.text,
+    ...(buttons.length ? { buttons } : {}),
+  });
 }
 
 /**
@@ -83,6 +215,28 @@ function makeProxySock(chatId, realSock, fromJid) {
       if (ok) return;
       // fall through to the simple content routing below
     }
+
+    // Interactive nativeFlow payload (mixedCard / sendNativeFlow output):
+    // buttons would be silently dropped by the simple routing below —
+    // render a native Telegram card with an inline keyboard instead.
+    if (Array.isArray(content?.nativeFlow) && content.nativeFlow.length) {
+      const buttons = content.nativeFlow.map(toTelegramButton).filter(Boolean);
+      try {
+        return await sendRich(bot, chatId, {
+          image: content.image || null,
+          title: content.title || '',
+          sections: [
+            ...(content.caption ? [{ text: mdToHtml(content.caption) }] : []),
+            ...(content.text ? [{ text: mdToHtml(content.text) }] : []),
+          ],
+          footer: content.footer,
+          ...(buttons.length ? { buttons } : {}),
+        });
+      } catch (err) {
+        console.warn('[TG-CMD] nativeFlow translation failed, falling back:', err.message || err);
+      }
+    }
+
     try {
       if (content?.image != null) {
         return bot.sendPhoto(chatId, content.image, {
@@ -110,9 +264,27 @@ function makeProxySock(chatId, realSock, fromJid) {
     }
     return pushText(chatId, content?.text || content?.caption || '');
   };
+  // Interactive sends (selectMenu / sendButtonsCard) go through
+  // sock.relayMessage, NOT sendMessage — relay them to Telegram too, or
+  // they'd hit the real WhatsApp socket with the `tg:` pseudo-JID (and the
+  // Baileys generator crashes on the mock `quoted` message).
+  const routeTelegramRelay = async (target, content, opts = {}) => {
+    const isTgTarget = typeof target === 'string'
+      && (target.startsWith('tg:') || target === fromJid);
+    if (!isTgTarget) return realSock.relayMessage(target, content, opts);
+    if (!bot) return pushText(chatId, relayFallbackText(content));
+    try {
+      return await renderButtonsCard(chatId, content);
+    } catch (err) {
+      console.warn('[TG-CMD] relay payload translation failed:', err?.message || err);
+      return pushText(chatId, relayFallbackText(content));
+    }
+  };
+
   return new Proxy(realSock, {
     get(target, prop, receiver) {
       if (prop === 'sendMessage') return routeTelegram;
+      if (prop === 'relayMessage') return routeTelegramRelay;
       const value = Reflect.get(target, prop, target);
       return typeof value === 'function' ? value.bind(target) : value;
     },
@@ -146,14 +318,20 @@ export async function runWhatsAppCommand(chatId, rawName, argList = []) {
   const fromJid = telegramJid(chatId);
   const proxySock = makeProxySock(chatId, sock, fromJid);
 
+  const bodyText = argList.join(' ');
   const m = {
     from: fromJid,
     sender: ownerJid,
+    // Real message content shape — baileys' generateWAMessageFromContent
+    // reads quoted.message when this mock is passed as { quoted: m }
+    // (interactive sends), and plugins expect m.msg / m.message too.
+    message: { conversation: bodyText },
     key: { remoteJid: fromJid, fromMe: true, id: `TGCMD${Date.now()}` },
     isGroup: false,
     fromMe: true,
     pushName: 'Telegram',
-    body: argList.join(' '),
+    body: bodyText,
+    msg: { conversation: bodyText },
     mentionedJid: [],
     quoted: null,
     isOwner: true,
