@@ -1,46 +1,48 @@
 /**
  * aiQuote.js — rotating AI-persona quote strip for rich replies.
  *
- * By default every reply quotes the invoker's own message, so WhatsApp
- * renders the quote header as "You" (the "You • Status" strip). Pass
- * { quoted: aiQuoted(m) } instead to attribute the strip to a well-known
- * AI assistant number — any device that has the number saved as a contact
- * shows the persona's name in the header (e.g. "ChatGPT"), which reads
- * far richer than quoting the command back at the user.
+ * Uses the Yuzuki "verified quote" pattern: instead of quoting a
+ * participant JID (which only shows a saved contact's name), the synthetic
+ * quote is a contactMessage vcard — WhatsApp renders the vcard's
+ * displayName directly in the quote header, so the persona name shows on
+ * every device with zero contact setup.
  *
  * Rotation is round-robin: every call advances to the next persona, so
  * consecutive replies show a different assistant (Meta AI → ChatGPT →
  * Perplexity → …).
  *
  * Numbers:
+ *   Meta AI     +1 (313) 555-0002 (waid 13135550002) — override with
+ *               META_AI_NUMBER in .env if you prefer another.
  *   ChatGPT     +1 800 242 8478   — official OpenAI WhatsApp number
  *   Perplexity  +1 833 436 3285   — official Perplexity WhatsApp number
- *   Meta AI     — Meta AI has NO public WhatsApp number (it's a built-in
- *     service, not a saveable contact). The entry below defaults to
- *     1-800-638-2244 ("1-800-META-AI" on a keypad) as a placeholder ONLY.
- *     Save whichever number you prefer as your "Meta AI" contact and set
- *     META_AI_NUMBER=<digits> in .env to pin it.
  *
- * Usage (any plugin):
- *   import { aiQuoted } from '../lib/aiQuote.js';
- *   await m.reply.info(text, 'TITLE', { quoted: aiQuoted(m) });
+ * Usage: the serializer's replyFn and interactiveKit call aiQuoted()
+ * automatically — plugins get the rotating persona by default. Override
+ * with your own `quoted` in the reply options when a real quote is needed.
  */
 
 const PERSONAS = [
   {
     name: 'Meta AI',
-    jid: `${process.env.META_AI_NUMBER || '18006382244'}@s.whatsapp.net`,
-    quote: 'Ask me anything — I can help you plan, create, and explore. ✨',
+    emoji: '🤖',
+    waid: process.env.META_AI_NUMBER || '13135550002',
+    tel: `+1 (${(process.env.META_AI_NUMBER || '13135550002').slice(1, 4)}) ${(process.env.META_AI_NUMBER || '13135550002').slice(4, 7)}-${(process.env.META_AI_NUMBER || '13135550002').slice(7)}`,
+    label: 'Ponsel',
   },
   {
     name: 'ChatGPT',
-    jid: '18002428478@s.whatsapp.net',
-    quote: 'How can I help you today? 💬',
+    emoji: '💬',
+    waid: '18002428478',
+    tel: '+1 (800) 242-8478',
+    label: 'Ponsel',
   },
   {
     name: 'Perplexity',
-    jid: '18334363285@s.whatsapp.net',
-    quote: 'Ask anything — answers with sources, fast. 🔎',
+    emoji: '🔎',
+    waid: '18334363285',
+    tel: '+1 (833) 436-3285',
+    label: 'Ponsel',
   },
 ];
 
@@ -53,31 +55,31 @@ function nextPersona() {
   return persona;
 }
 
-/** Message id in the same shape Baileys generates. */
-function fakeMessageId() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let id = '';
-  for (let i = 0; i < 16; i += 1) {
-    id += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return id;
-}
-
 /**
- * Build a synthetic `quoted` attributed to the next AI persona.
- *
- * @param {object}  m     The message being replied to (provides the chat JID).
- * @param {string} [text] Optional quote text — defaults to the persona's line.
+ * Build a synthetic `quoted` — a verified-style contact card attributed to
+ * the next AI persona. The `m` argument is accepted for call-site
+ * compatibility but unused: the strip renders the vcard displayName.
  */
-export function aiQuoted(m, text) {
+export function aiQuoted(m) {
   const persona = nextPersona();
   return {
     key: {
-      remoteJid: m?.from || m?.key?.remoteJid,
-      fromMe: false,
-      id: fakeMessageId(),
-      participant: persona.jid,
+      participant: '0@s.whatsapp.net',
+      remoteJid: 'status@broadcast',
     },
-    message: { conversation: text || persona.quote },
+    message: {
+      contactMessage: {
+        displayName: `${persona.emoji} ${persona.name}`,
+        vcard: [
+          'BEGIN:VCARD',
+          'VERSION:3.0',
+          `N:;${persona.name};;;`,
+          `FN:${persona.name}`,
+          `item1.TEL;waid=${persona.waid}:${persona.tel}`,
+          `item1.X-ABLabel:${persona.label}`,
+          'END:VCARD',
+        ].join('\n'),
+      },
+    },
   };
 }
