@@ -22,7 +22,7 @@ export default {
     const p = prefix || '.';
     let target = '';
 
-    if (m.quoted) {
+    if (m.quoted?.sender) {
       target = m.quoted.sender;
     } else if (m.msg?.contextInfo?.mentionedJid?.length) {
       target = m.msg.contextInfo.mentionedJid[0];

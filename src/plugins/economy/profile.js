@@ -70,7 +70,7 @@ export default {
     const p = prefix || '.';
     let targetJid = m.sender;
 
-    if (m.quoted) {
+    if (m.quoted?.sender) {
       targetJid = m.quoted.sender;
     } else if (m.msg?.contextInfo?.mentionedJid?.length) {
       targetJid = m.msg.contextInfo.mentionedJid[0];

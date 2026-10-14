@@ -71,7 +71,7 @@ function resolveTarget(args, m) {
     return { jid, number: num };
   }
 
-  if (m.quoted) {
+  if (m.quoted?.sender) {
     const jid = m.quoted.sender;
     const num = sanitizeNumber(jid.split('@')[0]);
     return { jid, number: num };

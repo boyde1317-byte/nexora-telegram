@@ -21,7 +21,7 @@ export default {
     await withReactionStatus(m, async () => {
       // Resolve the target: reply > mention
       let targetJid = null;
-      if (m.quoted) targetJid = m.quoted.sender;
+      if (m.quoted?.sender) targetJid = m.quoted.sender;
       else if (m.msg?.contextInfo?.mentionedJid?.length) targetJid = m.msg.contextInfo.mentionedJid[0];
 
       if (!targetJid) {

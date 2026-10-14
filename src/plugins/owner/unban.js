@@ -15,7 +15,7 @@ export default {
   execute: async ({ m }) => {
     let targetJid = null;
     if (m.mentioned?.length > 0) targetJid = m.mentioned[0];
-    else if (m.quoted) targetJid = m.quoted.sender;
+    else if (m.quoted?.sender) targetJid = m.quoted.sender;
 
     if (!targetJid) return await m.reply.error('Usage: `.unban @user` — or reply to a user\'s message');
 

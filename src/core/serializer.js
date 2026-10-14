@@ -410,6 +410,46 @@ export async function serialize(rawMessage, sock) {
   if (msgContent?.contextInfo?.quotedMessage || msgContent?.contextInfo?.stanzaId) {
     message.hasQuotedMsg = true;
     const q = msgContent.contextInfo;
+
+    // Bot-authored quotes: replying to the bot's own message (or a linked
+    // session's) must not present the bot as a user target — .me/.profile,
+    // .warn, .kick, .transfer etc. would otherwise resolve their target to
+    // the owner's account. Media download and quoted body stay available
+    // (e.g. .sticker on a bot-sent image); only the user-target fields are
+    // neutralised, and consumers fall through to mentions/self.
+    const quotedSenderRaw = normaliseJid(q.participant || '');
+    const mainBotJid = normaliseJid(sock.user?.id || '');
+    let quotedFromBot = false;
+    if (quotedSenderRaw) {
+      if (quotedSenderRaw === mainBotJid) {
+        quotedFromBot = true;
+      } else {
+        // LID-era keys may carry the quoted author as an opaque LID —
+        // resolve to the phone number for a reliable comparison.
+        let quotedPhone = String(quotedSenderRaw).split('@')[0].split(':')[0];
+        if (quotedSenderRaw.endsWith('@lid')) {
+          try {
+            const pn = await resolvePhoneJid(sock, quotedSenderRaw);
+            quotedPhone = String(pn).split('@')[0].split(':')[0];
+          } catch (_) {}
+        }
+        try {
+          const mainPhone = String(mainBotJid).split('@')[0].split(':')[0];
+          // direct main-phone match (e.g. LID-resolved) — getLinkedBotPhones
+          // deliberately EXCLUDES the main phone, so compare it separately
+          if (mainPhone && quotedPhone === mainPhone) {
+            quotedFromBot = true;
+          } else {
+            // dynamic import — sessionManager already imports this module
+            const { getLinkedBotPhones } = await import('./sessionManager.js');
+            if (mainPhone && quotedPhone && getLinkedBotPhones(mainPhone).includes(quotedPhone)) {
+              quotedFromBot = true;
+            }
+          }
+        } catch (_) {}
+      }
+    }
+
     message.quoted = {
       key: {
         id: q.stanzaId,
@@ -417,7 +457,8 @@ export async function serialize(rawMessage, sock) {
         participant: normaliseJid(q.participant || ''),
         fromMe: normaliseJid(q.participant || '') === normaliseJid(sock.user?.id || ''),
       },
-      sender: normaliseJid(q.participant || ''),
+      fromBot: quotedFromBot,
+      sender: quotedFromBot ? null : quotedSenderRaw,
       message: q.quotedMessage || {},
       type: q.quotedMessage ? Object.keys(q.quotedMessage)[0] : '',
       body: q.quotedMessage ? extractBody(Object.keys(q.quotedMessage)[0], Object.values(q.quotedMessage)[0]) : '',

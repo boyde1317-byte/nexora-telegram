@@ -29,7 +29,7 @@ export default {
     let targetJid = null;
     if (m.mentioned && m.mentioned.length > 0) {
       targetJid = m.mentioned[0];
-    } else if (m.quoted) {
+    } else if (m.quoted?.sender) {
       targetJid = m.quoted.sender;
     }
 
