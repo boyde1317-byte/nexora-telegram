@@ -13,7 +13,6 @@
  * requester's DM), never in the group where the command ran.
  */
 import { withReactionStatus } from '../../lib/cosmetics.js';
-import { aiQuoted } from '../../lib/aiQuote.js';
 import { actionCard } from '../../lib/interactiveKit.js';
 import { pairSession, addPairRequest, MAX_EXTRA_SESSIONS } from '../../core/sessionManager.js';
 import { listAndSend } from './sessions.js';
@@ -78,9 +77,8 @@ export default {
     if (!args.length) {
       return await m.reply.info(
         `*LINK ANOTHER WHATSAPP NUMBER*\n\n\`${p}pair <number with country code>\`\n\n• *Super owner:* pairs immediately — the code follows here (in groups it arrives in your DM instead, codes are never posted to a group).\n• *Anyone else:* files a request — the owner gets an Approve/Deny card, and the pairing code comes to your DM once approved.\n\nA linked number runs as its own NEXORA bot (max ${MAX_EXTRA_SESSIONS}). Requests expire after ~15 minutes.\n\n\`${p}sessions\` — list linked sessions\n\`${p}pairrequests\` — pending requests (super owner)`,
-        'PAIR SESSION',
-        { quoted: aiQuoted(m) } // rotating AI-persona strip (Meta AI / ChatGPT / Perplexity) instead of quoting the invoker's message
-      );
+        'PAIR SESSION'
+      ); // replyFn defaults to the rotating AI-persona quote (src/lib/aiQuote.js)
     }
 
     const raw = args[0];

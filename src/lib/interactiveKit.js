@@ -62,6 +62,7 @@
 
 import capabilities from '../core/capabilities.js';
 import { baileysBridge } from '../core/baileysBridge.js';
+import { aiQuoted } from './aiQuote.js';
 import { buildAdReplyContext } from './waUtils.js';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -70,6 +71,16 @@ import { buildAdReplyContext } from './waUtils.js';
 
 /** WA nativeFlow allows a max of 10 buttons per message. */
 const cap = (arr) => arr.slice(0, 10);
+
+/**
+ * Swap the caller's { quoted: m } for the rotating AI-persona quote so
+ * interactive cards carry the same rich header as text replies (the default
+ * quote renders as "You" — aiQuoted() attributes the strip to Meta AI /
+ * ChatGPT / Perplexity instead, round-robin per send). Callers can still
+ * force a real quote by passing one whose key they control; personas always
+ * win here so the card UI stays consistent with m.reply.
+ */
+const personaQuoted = (opts = {}) => (opts.quoted ? { ...opts, quoted: aiQuoted(opts.quoted) } : opts);
 
 /**
  * Smart dispatch — tries nativeFlow first, then plain text.
@@ -82,6 +93,7 @@ async function _send(sock, jid, payload, opts = {}) {
   // Extract contextInfo so it's forwarded on the plain-text fallback path
   // but NOT passed to sendNativeFlow (which doesn't support it).
   const { contextInfo, ...nativePayload } = payload;
+  opts = personaQuoted(opts);
   if (!capabilities.nativeFlow) {
     return sock.sendMessage(jid, {
       text: payload.text || '',
@@ -390,7 +402,7 @@ export async function selectMenu(sock, jid, content, pickerLabel, sections, side
       thumbnail = ASSET_URLS.thumbnail;
     }
   }
-  const { thumbnail: _ignored, ...relayOpts } = opts;
+  const { thumbnail: _ignored, ...relayOpts } = personaQuoted(opts);
 
   return await baileysBridge.sendButtonsCard(sock, jid, {
     body:    content.text,

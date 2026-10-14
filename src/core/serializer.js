@@ -2,6 +2,7 @@ import { downloadMediaMessage, getContentType } from 'baileys';
 import baileysBridge from './baileysBridge.js';
 import { config } from '../../config/index.js';
 import { messageFormatter } from '../ui/messageFormatter.js';
+import { aiQuoted } from '../lib/aiQuote.js';
 import { db } from '../database/db.js';
 import { withChannelPill } from '../lib/menuContext.js';
 import { buildEnrichedContextInfo } from '../lib/enrichContext.js';
@@ -492,7 +493,7 @@ export async function serialize(rawMessage, sock) {
     return await sock.sendMessage(
       message.from,
       { text, ...(finalContextInfo ? { contextInfo: finalContextInfo } : {}) },
-      { quoted: message, ...sendOptions }
+      { quoted: aiQuoted(message), ...sendOptions }
     );
   };
 
