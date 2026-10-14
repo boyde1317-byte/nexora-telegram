@@ -25,6 +25,7 @@ import { db } from '../database/db.js';
 import { config } from '../../config/index.js';
 import { telegramJid, sendToTelegramChat } from './bridge.js';
 import { mdToHtml } from './rich.js';
+import { messageFormatter } from '../ui/messageFormatter.js';
 import { hasRichPayload, renderRichToTelegram } from './richInbound.js';
 
 /** The Telegram bot instance — injected at boot via attachBot(). */
@@ -162,7 +163,14 @@ export async function runWhatsAppCommand(chatId, rawName, argList = []) {
     download: async () => { throw new Error('Media download is not available from the Telegram panel — send media on WhatsApp instead.'); },
     reply: async (text) => pushText(chatId, text),
   };
-  m.reply.warn = async (text) => pushText(chatId, text);
+  // Mirror the WhatsApp reply API (src/core/serializer.js) so every plugin
+  // helper — m.reply.info / .success / .error / .warn / .loading — works
+  // identically when a command runs from the Telegram panel.
+  m.reply.success = async (text) => pushText(chatId, messageFormatter.success(text));
+  m.reply.error   = async (text) => pushText(chatId, messageFormatter.error(text));
+  m.reply.warn    = async (text) => pushText(chatId, messageFormatter.warn(text));
+  m.reply.info    = async (text, title = 'INFO') => pushText(chatId, messageFormatter.info(text, title));
+  m.reply.loading = async (text = 'Processing...') => pushText(chatId, messageFormatter.loading(text));
 
   const ctx = {
     m,
