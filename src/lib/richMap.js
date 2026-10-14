@@ -18,6 +18,7 @@
  */
 
 import { generateWAMessageFromContent, generateMapContent, generateMapWithTable } from 'baileys';
+import { hoistAfterRelay } from './richMediaHoist.js';
 import capabilities from '../core/capabilities.js';
 
 export async function relayGenerated(sock, jid, generated) {
@@ -25,6 +26,9 @@ export async function relayGenerated(sock, jid, generated) {
     userJid: sock.user?.id || '0@s.whatsapp.net',
   });
   await sock.relayMessage(jid, message.message, { messageId: message.key.id });
+  // Rich cards reference images by URL and some clients never fetch them —
+  // re-send them as real photo uploads right after the card (fire-and-forget).
+  try { hoistAfterRelay(sock, jid, generated.message); } catch (_) { /* never block the relay */ }
   return message;
 }
 

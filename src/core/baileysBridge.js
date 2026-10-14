@@ -853,7 +853,15 @@ export const baileysBridge = {
     try {
       // The Baileys fork natively processes rich properties (e.g. code, links, table, items, etc.)
       // and converts them via prepareRichResponseMessage before relaying.
-      return await sock.sendMessage(jid, content, sendOptions);
+      const sent = await sock.sendMessage(jid, content, sendOptions);
+      // Hoist inline/grid image URLs as real photo uploads — some clients
+      // never fetch URL-based rich images (empty slots in .wiki etc.).
+      try {
+        const { extractDeclarativeImageUrls, hoistImages } = await import('../lib/richMediaHoist.js');
+        const urls = extractDeclarativeImageUrls(content);
+        if (urls.length) hoistImages(sock, jid, urls).catch(() => {});
+      } catch (_) { /* never block the send */ }
+      return sent;
     } catch (err) {
       console.warn('[baileysBridge.sendRichResponse] relay failed, plain text fallback:', err.message);
       
