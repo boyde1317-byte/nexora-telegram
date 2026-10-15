@@ -52,12 +52,7 @@ const DEV_CONTACT = { name: 'DeathCore_Xr', url: 'https://t.me/DeathCore_Xr' };
 const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexora-banner.jpg');
 
 import { config } from '../../config/index.js';
-import { client } from '../core/client.js';
 import { sendRich, renderTable, esc } from './rich.js';
-import {
-  TEMPLATES, templateJson, renderSpecToTelegram,
-  showMenuDetail, showCardBack, specToWhatsAppContent, normalizeSpec,
-} from './richBuilder.js';
 import { verifyPairingGate, SUPPORT_GROUP_LINK, CHANNEL_LINK } from './gate.js';
 import { MAJOR_COMMANDS, runWhatsAppCommand, runPendingAction, attachBot } from './commander.js';
 import {
@@ -551,91 +546,6 @@ export async function startTelegramBot() {
     }
   });
 
-  // ── /rich — rich message building, right in the panel ────────────────
-  // /rich                     main card with template picker
-  // /rich template <name>     copy-ready JSON spec
-  // /rich preview <json>      render the card natively here
-  // /rich send <number> <json>  push the card to a WhatsApp chat
-  bot.onText(/\/rich(?:\s+([\s\S]+))?/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const isPrivate = isPrivateChat(msg);
-    const args = (match?.[1] || '').trim();
-
-    // main card — template picker
-    if (!args) {
-      const tplRows = Object.keys(TEMPLATES).map((name) => [
-        { text: `📋 ${name}`, callback: `rich:tpl:${name}` },
-      ]);
-      return sendRich(bot, chatId, {
-        title: '🧱 Rich Message Building',
-        sections: [
-          { text: 'Compose rich cards — emoji header, price table, ✅ benefits, dropdown menu, contact button — then preview or push them to WhatsApp.' },
-          { text: 'How:' },
-          { lines: [
-            '/rich template <menu|price|promo|contact> — get a copy-ready JSON spec',
-            '/rich preview <json> — render the card right here',
-            '/rich send <number> <json> — send it to a WhatsApp chat',
-          ] },
-        ],
-        footer: 'NEXORA panel • rich builder',
-        buttons: [...tplRows],
-      });
-    }
-
-    const space = args.indexOf(' ');
-    const sub = (space === -1 ? args : args.slice(0, space)).toLowerCase();
-    const rest = space === -1 ? '' : args.slice(space + 1).trim();
-
-    // /rich template <name>
-    if (sub === 'template') {
-      const json = templateJson(rest.split(/\s+/)[0]);
-      if (!json) {
-        return reply(chatId, `Templates: ${Object.keys(TEMPLATES).map((t) => `\`/rich template ${t}\``).join(' | ')}`);
-      }
-      return reply(chatId, `Copy, edit, then \`/rich preview <json>\`:\n\n${json}`);
-    }
-
-    // /rich preview <json> / /rich send <number> <json>
-    if (sub === 'preview' || sub === 'send') {
-      let spec;
-      if (sub === 'preview' && !rest.startsWith('{')) {
-        // convenience: /rich preview menu → render the template itself
-        const t = TEMPLATES[rest.toLowerCase()];
-        if (!t) return reply(chatId, 'Paste the card JSON after `preview`, or a template name (`menu`, `price`, `promo`, `contact`).');
-        spec = t;
-      } else {
-        try {
-          spec = JSON.parse(sub === 'send' ? rest.slice(rest.indexOf('{')) : rest);
-          normalizeSpec(spec); // validate early with a friendly error
-        } catch (err) {
-          return reply(chatId, `❌ Invalid card spec: ${err.message || err}`);
-        }
-      }
-
-      if (sub === 'preview') {
-        return renderSpecToTelegram(bot, chatId, spec).catch((err) =>
-          reply(chatId, `❌ Render failed: ${err.message || err}`));
-      }
-
-      // send → push the card to a WhatsApp chat (private panel only)
-      if (!isPrivate) return refusePublic(chatId);
-      const number = normalizePhone(rest.split(/\s+/)[0]);
-      if (!number) return reply(chatId, 'Usage: `/rich send <number> <json>`');
-      const sock = client.socket;
-      if (!sock?.user) return reply(chatId, 'Main session is offline — link it first (see /sessions).');
-      const jid = `${number}@s.whatsapp.net`;
-      try {
-        const waContent = specToWhatsAppContent(spec);
-        await sock.sendMessage(jid, waContent);
-        return reply(chatId, `✅ Rich card sent to +${number}.`);
-      } catch (err) {
-        return reply(chatId, `❌ Send failed: ${err.message || err}`);
-      }
-    }
-
-    return reply(chatId, 'Unknown subcommand — try `/rich` for the builder menu.');
-  });
-
   // ── /pair <number> ──────────────────────────────────────────────────
   bot.onText(/\/pair(?:\s+(\S+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
@@ -778,34 +688,6 @@ export async function startTelegramBot() {
     }
 
     // ── Engine command tap-run buttons (admin-gated) ──────────────────
-    // ── Rich builder interactions (dropdown taps, template picker) ─────
-    if (data.startsWith('rich:')) {
-      const chatId = query.message?.chat?.id;
-      if (!chatId) return bot.answerCallbackQuery(query.id);
-      const action = data.slice(5);
-
-      if (action.startsWith('tpl:')) {
-        await bot.answerCallbackQuery(query.id, { text: 'Template below…' });
-        const json = templateJson(action.slice(4));
-        if (json) return bot.sendMessage(chatId, `Copy, edit, then \`/rich preview <json>\`:\n\n${json}`, { parse_mode: 'Markdown' });
-        return;
-      }
-      if (action.startsWith('show:')) {
-        await bot.answerCallbackQuery(query.id);
-        try { await showMenuDetail(bot, chatId, action.slice(5)); }
-        catch (err) { console.warn('[TG][rich] dropdown tap failed:', err?.message || err); }
-        return;
-      }
-      if (action === 'back') {
-        await bot.answerCallbackQuery(query.id);
-        try { await showCardBack(bot, chatId); }
-        catch (err) { console.warn('[TG][rich] back tap failed:', err?.message || err); }
-        return;
-      }
-      return bot.answerCallbackQuery(query.id);
-    }
-
-    // ── Engine command tap-run buttons (admin-gated) ────────────────────
     if (data.startsWith('wc:')) {
       const chatId = query.message?.chat?.id;
       const name = data.slice(3);

@@ -77,18 +77,16 @@ export function renderTable({ headers = [], rows = [], align = [] }) {
   const nCols = Math.max(...matrix.map((r) => r.length), 0);
   if (!nCols) return '';
   const widths = Array.from({ length: nCols }, (_, c) =>
-    Math.min(26, Math.max(3, ...matrix.map((r) => (r[c] ?? '').length))));
-  const cell = (val, c) => {
-    const sv = String(val ?? '').slice(0, widths[c]);
-    return ` ${align[c] === 'r' ? sv.padStart(widths[c]) : sv.padEnd(widths[c])} `;
+    Math.min(26, Math.max(3, ...matrix.map((r) => (r[c] ?? '').length + 2))));
+  const pad = (cell, c) => {
+    const s = String(cell ?? '').slice(0, widths[c] - 2);
+    return align[c] === 'r'
+      ? s.padStart(widths[c] - 2).padEnd(widths[c])
+      : s.padEnd(widths[c]);
   };
-  const norm = (r) => Array.from({ length: nCols }, (_, c) => r[c]);
-  const line = (r) => '│' + norm(r).map((v, c) => cell(v, c)).join('│') + '│';
-  const bar = (l, m, t) => l + widths.map((w) => '─'.repeat(w + 2)).join(m) + t;
-  const out = [
-    bar('┌', '┬', '┐'), line(headers), bar('├', '┼', '┤'),
-    ...rows.map((r) => line(r)), bar('└', '┴', '┘'),
-  ];
+  const line = (r) => '│' + r.map((cell, c) => ` ${pad(cell, c)}`).join('').slice(0, -1) + '│';
+  const rule = '├' + widths.map((w) => '─'.repeat(w)).join('┼') + '┤';
+  const out = [line(headers), rule, ...rows.map((r) => line(r))];
   return `<pre>${esc(out.join('\n'))}</pre>`;
 }
 
