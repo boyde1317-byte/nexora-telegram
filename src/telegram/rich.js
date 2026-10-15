@@ -10,8 +10,15 @@
  *   • galleries      → sendMediaGroup albums (native stacked images)
  *   • long bodies    → chunked at 4096 chars, keyboard rides the last chunk
  *
+ * v2 additions — the Telegram "message building" primitives:
+ *   • buildRich()    — placeholder → in-place edit, the build-in-place effect
+ *   • editRich()     — re-render an existing message into a rich card
+ *   • { quote }      — expandable blockquote sections (collapsible <details>)
+ *   • { spoiler }    — tap-to-reveal <tg-spoiler> text
+ *   • preview        — kill link previews, or force one as a banner image
+ *
  * Usage:
- *   import { sendRich, mdToHtml, renderTable, buildKeyboard } from './rich.js';
+ *   import { sendRich, buildRich, editRich, mdToHtml, renderTable, buildKeyboard } from './rich.js';
  *   await sendRich(bot, chatId, {
  *     image: BANNER_PATH,                 // optional — upgrades to photo card
  *     title: '⚡ Welcome',
@@ -107,6 +114,14 @@ export function renderContent({ title, sections = [], footer }) {
     if (s.markdown) parts.push(mdToHtml(s.markdown));
     if (s.lines) parts.push(esc(s.lines.join('\n')).replace(/\n/g, '\n'));
     if (s.table) parts.push(renderTable(s.table));
+    // Collapsible section — Telegram's native <details> element.
+    // { quote: 'text' } or { quote: { text, expandable } }
+    if (s.quote) {
+      const q = typeof s.quote === 'string' ? { text: s.quote } : s.quote;
+      parts.push(`<blockquote${q.expandable === false ? '' : ' expandable'}>${mdToHtml(q.text || '')}</blockquote>`);
+    }
+    // Tap-to-reveal: { spoiler: 'hidden text' }
+    if (s.spoiler) parts.push(`<tg-spoiler>${esc(s.spoiler)}</tg-spoiler>`);
   }
   if (footer) parts.push(`\n<i>${esc(footer)}</i>`);
   return parts.join('\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -130,9 +145,14 @@ export function clipHtml(html, limit) {
  *   longer               → chunked text messages, keyboard on the last
  */
 export async function sendRich(bot, chatId, content = {}) {
-  const { image, buttons, keyboard, ...rest } = content;
+  const { image, buttons, keyboard, preview, ...rest } = content;
   const html = renderContent(rest);
   const markup = keyboard || buildKeyboard(buttons);
+  // preview: false kills link previews; a URL forces one (Telegram shows
+  // it ABOVE the text — a free banner-image effect for cards).
+  const linkPreview = preview === undefined ? undefined
+    : preview === false ? { is_disabled: true }
+    : { url: String(preview), is_disabled: false };
 
   if (image) {
     const caption = clipHtml(html, CAPTION_LIMIT);
@@ -151,6 +171,7 @@ export async function sendRich(bot, chatId, content = {}) {
   if (html.length <= TEXT_LIMIT) {
     return bot.sendMessage(chatId, html, {
       parse_mode: 'HTML',
+      ...(linkPreview ? { link_preview_options: linkPreview } : {}),
       ...(markup ? { reply_markup: markup } : {}),
     });
   }
@@ -169,10 +190,62 @@ export async function sendRich(bot, chatId, content = {}) {
     const last = i === chunks.length - 1;
     await bot.sendMessage(chatId, chunks[i], {
       parse_mode: 'HTML',
+      ...((i === 0 && linkPreview) ? { link_preview_options: linkPreview } : {}),
       ...((last && markup) ? { reply_markup: markup } : {}),
     });
   }
   return chunks.length;
+}
+
+
+/**
+ * Edit an existing message into a rich card — the second half of the
+ * build-in-place pattern (sendRich placeholder → editRich final).
+ */
+export async function editRich(bot, chatId, messageId, content = {}) {
+  const { buttons, keyboard, preview, ...rest } = content;
+  const html = clipHtml(renderContent(rest), TEXT_LIMIT);
+  const markup = keyboard || buildKeyboard(buttons);
+  const linkPreview = preview === undefined ? undefined
+    : preview === false ? { is_disabled: true }
+    : { url: String(preview), is_disabled: false };
+  return bot.editMessageText(html, {
+    chat_id: chatId,
+    message_id: messageId,
+    parse_mode: 'HTML',
+    ...(linkPreview ? { link_preview_options: linkPreview } : {}),
+    ...(markup ? { reply_markup: markup } : {}),
+  });
+}
+
+/**
+ * BUILD-IN-PLACE: the classic Telegram "message building" effect.
+ * Sends a placeholder ("⏳ Working…"), then swaps it into the final
+ * rich card in one edit — the user watches the card materialize in
+ * the same bubble. Falls back to a fresh card if the edit fails
+ * (message too old, etc.). Returns the final message object.
+ *
+ *   await buildRich(bot, chatId, {
+ *     progress: '⏳ Rolling the dice…',
+ *     title: '🎲 Dice roll',
+ *     sections: [{ text: 'You rolled a <b>6</b>!' }],
+ *     buttons: [[{ text: '🎲 Again', callback: 'dice:again' }]],
+ *   });
+ */
+export async function buildRich(bot, chatId, content = {}) {
+  const { progress, ...rest } = content;
+  let placeholder;
+  try {
+    placeholder = await bot.sendMessage(chatId, esc(progress || '⏳ Working…'));
+  } catch (_) {
+    return sendRich(bot, chatId, rest);
+  }
+  try {
+    return await editRich(bot, chatId, placeholder.message_id, rest);
+  } catch (err) {
+    console.warn('[TG][rich] in-place edit failed, sending fresh card:', err.message);
+    return sendRich(bot, chatId, rest);
+  }
 }
 
 /**
