@@ -158,6 +158,11 @@ function _formatV2Sections(sections, outSections) {
         text += '\n\n';
         outSections.push({ type: 'gridImage', mainUrl: prim.grid_image_url, count: prim.image_urls?.length });
         break;
+      case 'GenAIImaginePrimitive':
+        // nixcode-style image section — media.url is the image the card shows
+        text += `[🖼️ ${prim.imagine_type || 'Image'}: ${prim.media?.url || ''}]\n\n`;
+        outSections.push({ type: 'inlineImage', url: prim.media?.url, text: prim.imagine_type });
+        break;
       case 'GenAIDynamicUXPrimitive':
         text += `[🎞️ Dynamic (${prim.type || 'UNKNOWN'}): ${prim.url || ''}]\n\n`;
         outSections.push({ type: 'dynamic', kind: prim.type, url: prim.url });

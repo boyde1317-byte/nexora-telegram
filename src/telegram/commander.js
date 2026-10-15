@@ -26,7 +26,7 @@ import { config } from '../../config/index.js';
 import { telegramJid, sendToTelegramChat } from './bridge.js';
 import { mdToHtml, esc, sendRich, buildKeyboard } from './rich.js';
 import { messageFormatter } from '../ui/messageFormatter.js';
-import { hasRichPayload, renderRichToTelegram } from './richInbound.js';
+import { hasRichPayload, renderRichToTelegram, hasRichProtoMessage, renderRichProtoToTelegram } from './richInbound.js';
 
 /** The Telegram bot instance — injected at boot via attachBot(). */
 let bot = null;
@@ -273,6 +273,17 @@ function makeProxySock(chatId, realSock, fromJid) {
       && (target.startsWith('tg:') || target === fromJid);
     if (!isTgTarget) return realSock.relayMessage(target, content, opts);
     if (!bot) return pushText(chatId, relayFallbackText(content));
+    // Generated rich cards (.testrich generators, AIRich combos, maps) relay
+    // as richResponseMessage proto — build a rich Telegram card from them,
+    // not the plain-text fallback.
+    if (hasRichProtoMessage(content)) {
+      try {
+        const ok = await renderRichProtoToTelegram(bot, chatId, content);
+        if (ok) return true;
+      } catch (err) {
+        console.warn('[TG-CMD] rich proto translation failed:', err?.message || err);
+      }
+    }
     try {
       return await renderButtonsCard(chatId, content);
     } catch (err) {
