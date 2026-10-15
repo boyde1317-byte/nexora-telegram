@@ -15,6 +15,7 @@ import {
   generateWAMessageFromContent,
 } from 'baileys';
 import { AIRich } from './NIXCODE.js';
+import { hoistAfterRelay } from './richMediaHoist.js';
 import { renderLatexToPngSvg } from './latexRenderer.js';
 
 // ── V1 + V2 generators (imported from the fork's rich-message-utils.js) ─────
@@ -90,6 +91,10 @@ async function _relayGenerated(sock, jid, generated, options = {}) {
     userJid: sock.user?.id || '0@s.whatsapp.net',
   });
   await sock.relayMessage(jid, message.message, { messageId: message.key.id });
+  // URL-based rich images (inlineImage/gridImage) are client-fetched — many
+  // clients never fetch them. Hoist them as real photo uploads right after
+  // the card so the image is guaranteed to arrive (fire-and-forget).
+  try { hoistAfterRelay(sock, jid, generated.message); } catch (_) { /* never block the relay */ }
   return message;
 }
 
