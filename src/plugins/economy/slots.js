@@ -1,106 +1,133 @@
 /**
- * slots.js — 3-reel emoji slot machine.
- *
- * Bet coins, spin the reels. Payouts:
- *   7️⃣7️⃣7️⃣   → ×20 jackpot
- *   🍒🍒🍒   → ×8
- *   💎💎💎   → ×12
- *   🍋🍋🍋   → ×5
- *   🔔🔔🔔   → ×4
- *   any 2 match → ×1.5 (bet back + half)
- * Single cute card + interactive buttons. Everything under withUserLock
- * so concurrent spins can't double-spend.
+ * @file src/plugins/economy/slots.js
+ * .slots [bet] — 3-reel slot machine. Weighted symbols, jackpot on 7️⃣7️⃣7️⃣,
+ * streak-free one-button replay. House edge lives in the weight table.
  */
-import { withReactionStatus } from '../../lib/cosmetics.js';
+
+import { db } from '../../database/db.js';
 import { withUserLock } from '../../economy/leveling.js';
-import { actionCard } from '../../lib/interactiveKit.js';
+import { commitAction } from '../../economy/actions.js';
+import { withReactionStatus } from '../../lib/cosmetics.js';
+import { richTableCard } from '../../lib/interactiveKit.js';
 
-const REELS   = ['🍒', '🍋', '🔔', '💎', '7️⃣'];
-const TRIPLE  = { '7️⃣': 20, '💎': 12, '🍒': 8, '🍋': 5, '🔔': 4 };
 const MIN_BET = 10;
-const MAX_BET = 5000;
+const MAX_BET = 50000;
 
-function spin() {
-  // weight: 7️⃣ rarest, 🍒 most common
-  const bag = ['🍒', '🍒', '🍒', '🍋', '🍋', '🔔', '🔔', '💎', '7️⃣'];
-  return [
-    bag[Math.floor(Math.random() * bag.length)],
-    bag[Math.floor(Math.random() * bag.length)],
-    bag[Math.floor(Math.random() * bag.length)],
-  ];
+// symbol → [weight, payout multiplier when TRIPLED, payout for a PAIR]
+const SYMBOLS = {
+  '🍒': { weight: 30, triple: 3,  pair: 1 },
+  '🔔': { weight: 22, triple: 4,  pair: 1 },
+  '🍀': { weight: 16, triple: 6,  pair: 2 },
+  '💡': { weight: 12, triple: 8,  pair: 2 },
+  '💎': { weight: 8,  triple: 12, pair: 3 },
+  '7️⃣': { weight: 4,  triple: 25, pair: 4 },
+};
+const TOTAL_WEIGHT = Object.values(SYMBOLS).reduce((a, s) => a + s.weight, 0);
+
+function spinReel() {
+  let roll = Math.random() * TOTAL_WEIGHT;
+  for (const [sym, s] of Object.entries(SYMBOLS)) {
+    roll -= s.weight;
+    if (roll <= 0) return sym;
+  }
+  return '🍒';
 }
 
-function payoutFor(reels, bet) {
+function evaluate(reels) {
   const [a, b, c] = reels;
-  if (a === b && b === c) return { mult: TRIPLE[a], label: 'TRIPLE' };
-  if (a === b || b === c || a === c) return { mult: 1.5, label: 'PAIR' };
-  return { mult: 0, label: 'MISS' };
+  if (a === b && b === c) {
+    return { multiplier: SYMBOLS[a].triple, kind: a === '7️⃣' ? 'JACKPOT' : 'TRIPLE' };
+  }
+  // best paying pair (any two matching)
+  if (a === b || b === c || a === c) {
+    const sym = (a === b || a === c) ? a : b;
+    return { multiplier: SYMBOLS[sym].pair, kind: 'PAIR' };
+  }
+  return { multiplier: 0, kind: 'BUST' };
 }
 
 export default {
   name: 'slots',
-  aliases: ['slot', 'spin', 'bet'],
+  aliases: ['slot', 'reels'],
   category: 'economy',
-  description: 'Spin the slot machine! .slots <bet> — pairs pay ×1.5, triples ×4–20.',
+  description: 'Spin the 3 reels. 7️⃣7️⃣7️⃣ pays x25! Pair pays too. Min bet 10.',
   cooldown: 4000,
-  execute: async ({ m, sock, db, prefix, args }) => {
+  execute: async ({ m, sock, prefix }) => {
     const p = prefix || '.';
     await withReactionStatus(m, async () => {
-      await withUserLock(m.sender, async () => {
-        const user = db.getUser(m.sender);
+      try {
+        await withUserLock(m.sender, async () => {
+          const u = db.getUser(m.sender);
 
-        let bet = Math.floor(Number(args?.[0]));
-        if (args?.[0] === 'max' || args?.[0] === 'all') bet = Math.min(user.coins ?? 0, MAX_BET);
-        if (!Number.isFinite(bet) || bet <= 0) {
-          return await m.reply(
-            `🎰 *SLOTS*\n\nUsage: \`${p}slots <amount>\`\nExample: \`${p}slots 50\` or \`${p}slots max\`\n\nPayouts: pair ×1.5 ・ triples ×4 up to ×20 (7️⃣ jackpot)`
-          );
-        }
-        bet = Math.min(bet, MAX_BET);
+          if (u.jailUntil && Date.now() < u.jailUntil) {
+            return await m.reply.warn('🚔 You\'re still in jail. Cool your heels a bit.', 'SLOTS');
+          }
 
-        if (bet < MIN_BET) return await m.reply(`Minimum bet is *${MIN_BET}* coins.`);
-        if ((user.coins ?? 0) < bet) {
-          return await m.reply(`Not enough coins! You have *${(user.coins ?? 0).toLocaleString()}* — bet was *${bet.toLocaleString()}*.\nTry \`${p}work\` or \`${p}daily\` to earn some.`);
-        }
+          const bet = Math.floor(Number(m.args?.[0]));
+          const amount = Number.isFinite(bet) && bet > 0 ? bet : 50;
+          if (amount < MIN_BET) return await m.reply.warn(`Minimum bet is ${MIN_BET} coins.`, 'SLOTS');
+          if (amount > MAX_BET) return await m.reply.warn(`Maximum bet is ${MAX_BET.toLocaleString()} coins.`, 'SLOTS');
+          if ((u.coins ?? 0) < amount) {
+            return await m.reply.warn(`Not enough coins. You have ${(u.coins ?? 0).toLocaleString()}.`, 'SLOTS');
+          }
 
-        const reels = spin();
-        const { mult, label } = payoutFor(reels, bet);
-        const delta = Math.round(bet * mult) - bet; // net change
-        const newCoins = (user.coins ?? 0) + delta;
-        db.setUser(m.sender, { coins: newCoins });
+          const reels = [spinReel(), spinReel(), spinReel()];
+          const { multiplier, kind } = evaluate(reels);
+          const payout = Math.floor(amount * multiplier);
+          const net = payout - amount;
 
-        const rowStr = '```' + `[ ${reels.join(' ┃ ')} ]` + '```';
-        const won = delta > 0;
+          const stats = {
+            slotsSpins: (u.stats?.slotsSpins ?? 0) + 1,
+            slotsWins: (u.stats?.slotsWins ?? 0) + (net > 0 ? 1 : 0),
+            biggestSlotsWin: Math.max(u.stats?.biggestSlotsWin ?? 0, net),
+            slotsJackpot: (u.stats?.slotsJackpot ?? 0) + (kind === 'JACKPOT' ? 1 : 0),
+          };
 
-        const lines = [
-          '✧･ﾟ: *SLOTS* :･ﾟ✧',
-          '',
-          rowStr,
-          won
-            ? `${label === 'TRIPLE' ? '🌟 *JACKPOT-CLASS WIN*' : '✨ *Pair!*'}  ${label}`
-            : `${label === 'MISS' ? '💨 *No match*' : ''}`,
-          '',
-          won
-            ? `🪙 *+${delta.toLocaleString()}* coins (${label} ×${mult})`
-            : `🪙 ~${bet.toLocaleString()} coins lost to the void`,
-          `⚖️ Wallet: *${newCoins.toLocaleString()}* coins`,
-          '',
-          mult === 20 ? '🏆 *7️⃣ 7️⃣ 7️⃣ — THE JACKPOT. Legendary.*' : '_·˚ ✦ NEXORA ✦ ˚·_',
-        ];
+          const { result, lines } = commitAction(m.sender, {
+            coinsDelta: net,
+            xp: net > 0 ? Math.min(net, 50) : 0,
+            stats,
+            quest: 'slotWins',
+            questN: net > 0 ? 1 : 0,
+          });
 
-        try {
-          return await actionCard(sock, m.from, {
-            text: lines.join('\n'),
-            footer: 'NEXORA • Slots',
-          }, [
-            { label: '🎰 Spin again', cmd: `${p}slots ${bet}` },
-            { label: '⚖️ Balance',    cmd: `${p}balance` },
-            { label: '💼 Work',       cmd: `${p}work` },
-          ], { quoted: m });
-        } catch (_) {
-          return await m.reply(lines.join('\n'));
-        }
-      });
+          const reelStr = `  ${reels.join('  ┃  ')}  `;
+          const title = kind === 'JACKPOT' ? '🎰 SLOTS — JACKPOT!!! 🎉'
+            : net > 0 ? '🎰 SLOTS — WIN' : '🎰 SLOTS';
+          const verdict =
+            kind === 'JACKPOT' ? '7️⃣ TRIPLE SEVENS — x25 PAYOUT 🤑' :
+            kind === 'TRIPLE' ? `${reels[0]}×3 — x${multiplier}!` :
+            kind === 'PAIR' ? `Pair of ${reels.find(r => reels.filter(x => x === r).length === 2) || '…'} — x${multiplier}` :
+            'No match. The house smiles.';
+
+          const rows = [
+            ['Reels', reelStr],
+            ['Result', verdict],
+            ['Bet', `🪙 ${amount.toLocaleString()}`],
+            ['Payout', `${net >= 0 ? '+' : ''}${net.toLocaleString()} (now ${(result.after.coins ?? 0).toLocaleString()})`],
+          ];
+          if (result.leveledUp) rows.push(['Level up', `🎉 Level ${result.after.level}!`]);
+
+          try {
+            await richTableCard(sock, m.from, {
+              title,
+              headers: ['', ''],
+              rows: rows.map(r => [r[0], r[1]]),
+              footer: lines.length ? lines.join('\n') : `Spin again: ${p}slots ${amount}`,
+              buttons: [
+                { label: 'Spin again', cmd: `${p}slots ${amount}` },
+                { label: 'Balance', cmd: `${p}balance` },
+                { label: 'Quests', cmd: `${p}quests` },
+              ],
+            }, { quoted: m });
+          } catch (_) {
+            await m.reply(`${reelStr}\n\n${verdict}\n🪙 ${net >= 0 ? '+' : ''}${net.toLocaleString()} coins (now ${(result.after.coins ?? 0).toLocaleString()})${lines.length ? '\n' + lines.join('\n') : ''}`);
+          }
+        });
+      } catch (e) {
+        if (String(e?.message).includes('transaction')) return await m.reply.warn(String(e.message), 'SLOTS');
+        await m.reply.error(`Slots error: ${e.message}`);
+      }
     });
   },
 };

@@ -531,4 +531,67 @@ export async function renderMenuBanner(data) {
   return canvas.toBuffer('image/png');
 }
 
-export default { renderRankCard, renderLevelUpCard, renderMusicCard, renderMenuBanner };
+/**
+ * Ship card: two avatars, a heart, and the deterministic compatibility %.
+ * data = { nameA, avatarUrlA, nameB, avatarUrlB, percent, verdict }
+ */
+export async function renderShipCard(data) {
+  const W = 900, H = 420;
+  const canvas = createCanvas(W, H);
+  const ctx = canvas.getContext('2d');
+  drawBackground(ctx, W, H);
+  ctx.fillStyle = BRAND.card;
+  roundRect(ctx, 24, 24, W - 48, H - 48, 28);
+  ctx.fill();
+  ctx.strokeStyle = BRAND.stroke;
+  ctx.lineWidth = 2;
+  roundRect(ctx, 24, 24, W - 48, H - 48, 28);
+  ctx.stroke();
+
+  const A = 190;
+  const ay = 90;
+  const axL = 110;
+  const axR = W - axL - A;
+
+  // left avatar (purple ring)
+  ctx.beginPath();
+  ctx.arc(axL + A / 2, ay + A / 2, A / 2 + 8, 0, Math.PI * 2);
+  ctx.strokeStyle = BRAND.accentA;
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  const avA = await avatarWithRing(data.avatarUrlA, data.nameA, A, BRAND.accentA);
+  ctx.drawImage(avA.canvas, axL, ay, A, A);
+
+  // right avatar (cyan ring)
+  ctx.beginPath();
+  ctx.arc(axR + A / 2, ay + A / 2, A / 2 + 8, 0, Math.PI * 2);
+  ctx.strokeStyle = BRAND.accentB;
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  const avB = await avatarWithRing(data.avatarUrlB, data.nameB, A, BRAND.accentB);
+  ctx.drawImage(avB.canvas, axR, ay, A, A);
+
+  // heart in the middle
+  const cx = W / 2, cy = ay + A / 2;
+  ctx.font = `${Math.round(A * 0.5)}px "DejaVu Sans"`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('💖', cx, cy - 34);
+  ctx.fillStyle = BRAND.text;
+  ctx.font = `bold 52px "DejaVu Sans"`;
+  ctx.fillText(`${data.percent}%`, cx, cy + 16);
+  ctx.fillStyle = BRAND.subtext;
+  ctx.font = `600 22px "DejaVu Sans"`;
+  ctx.fillText(data.verdict || '', cx, cy + 62);
+
+  // names under the avatars
+  ctx.fillStyle = BRAND.text;
+  ctx.font = `600 28px "DejaVu Sans"`;
+  ctx.fillText((data.nameA || 'A').slice(0, 16), axL + A / 2, ay + A + 42);
+  ctx.fillText((data.nameB || 'B').slice(0, 16), axR + A / 2, ay + A + 42);
+
+  drawFooter(ctx, W, H, 'nexora ship meter');
+  return canvas.toBuffer('image/png');
+}
+
+export default { renderRankCard, renderLevelUpCard, renderMusicCard, renderMenuBanner, renderShipCard };
