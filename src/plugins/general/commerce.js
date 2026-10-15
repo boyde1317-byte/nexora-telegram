@@ -71,7 +71,7 @@ async function resolveImage(m) {
 
 export default {
   name: 'product',
-  aliases: ['productcard', 'ordercard', 'pollresult'],
+  aliases: ['productcard', 'ordercard', 'pollresult', 'invoice', 'requestpayment', 'payreq'],
   category: 'general',
   description: 'Native WA commerce cards: .product (product card), .ordercard (order bubble), .pollresult (result snapshot).',
   cooldown: 10000,
@@ -165,7 +165,49 @@ export default {
         return await m.reply.success(`📊 Poll result snapshot sent — *${name}* (${totalVotes} total votes)`);
       }
 
-      return await m.reply.error(`Unknown subcommand. Try \`${p}product\`, \`${p}ordercard\` or \`${p}pollresult\`.`);
+      // ── .invoice — Message.invoiceMessage ─────────────────────────────
+      if (command === 'invoice') {
+        const note = (parts.join(' ') || 'Invoice').slice(0, 300);
+        const img = await resolveImage(m);
+        if (!img) return await m.reply.error('No attachment available — reply to an image or set the default menu image.');
+
+        // Fork builder keys off `invoiceNote` + a prepared image message:
+        // builds invoiceMessage with attachment metadata + note + token.
+        await sock.sendMessage(m.from, {
+          image: img.buffer,
+          invoiceNote: note
+        }, { quoted: m });
+
+        return await m.reply.success(`🧾 Invoice card sent — _${note.slice(0, 60)}_ (attachment: ${img.origin})`);
+      }
+
+      // ── .requestpayment — Message.requestPaymentMessage ────────────────
+      if (command === 'requestpayment' || command === 'payreq') {
+        const [priceTok, ...noteParts] = parts;
+        const price = parsePrice(priceTok);
+        if (!price) {
+          return await m.reply.error(`Invalid format. Usage: \`${p}requestpayment 50 GHS | Note\` — reply to the person you're billing.`);
+        }
+        const note = noteParts.join(' ') || `Payment request: ${price.amount} ${price.currency}`;
+
+        // Target: replied-to sender, mentioned user, or the command sender.
+        const target = (m.quoted?.sender) || (m.mentionedJid?.[0]) || m.sender;
+
+        // Fork builder keys off `requestPaymentFrom`; amount fields spread over
+        // the IDR defaults. `text` rides along as the noteMessage (extendedText).
+        await sock.sendMessage(m.from, {
+          requestPaymentFrom: target,
+          amount1000: Math.round(price.amount * 1000),
+          currencyCodeIso4217: price.currency,
+          amount: { currencyCode: price.currency, offset: 1000, value: Math.round(price.amount * 1000) },
+          expiryTimestamp: Date.now() + 24 * 60 * 60 * 1000,
+          text: note
+        }, { quoted: m });
+
+        return await m.reply.success(`💳 Payment request sent — *${price.amount} ${price.currency}* → ${String(target).split('@')[0]} (expires in 24h)`);
+      }
+
+            return await m.reply.error(`Unknown subcommand. Try \`${p}product\`, \`${p}ordercard\` or \`${p}pollresult\`.`);
     } catch (err) {
       console.error('[commerce] Error:', err);
       return await m.reply.error(`Commerce card failed: ${err.message}`);
