@@ -9,6 +9,18 @@
  *   • /pair    — admins pair directly, the pairing code lands in this chat
  *   • non-admins file a request → inline Approve/Deny keyboard for admins
  *   • /sessions /pairrequests /unpair /logoutall /reload — full lifecycle
+ *   • /status /restart — per-user connection health + session restart,
+ *     scoped to sessions the user linked themselves (pairedBy binding)
+ *
+ * Security posture (2026-10 hardening):
+ *   • Private-chat-only: pairing codes, session lists and fleet controls
+ *     are refused in group chats — one warning per chat, then silence.
+ *   • Rate limits: 6 pair attempts / 60s per Telegram user, plus a 60s
+ *     per-number cooldown so one number can't be hammered via many
+ *     accounts or fresh sessions spammed into fleet slots.
+ *   • Ownership: every paired session records the Telegram id that
+ *     requested it; non-admin /status & /restart see and touch only
+ *     their own numbers. The full fleet roster stays admin-only.
  *   • session lifecycle alerts mirror to the owner's Telegram DM
  *
  * Design notes (lessons from the Yuzuki v1 port):
@@ -54,6 +66,7 @@ import {
   removeSession,
   removeAllSessions,
   resumeExtraSessions,
+  restartSession,
   MAX_EXTRA_SESSIONS,
 } from '../core/sessionManager.js';
 import {
@@ -126,6 +139,47 @@ function floodOk(userId) {
   return true;
 }
 
+/** Per-phone pairing cooldown (60s): the same number can't be hammered
+ *  from different accounts, and a failed attempt gets a fresh slot a
+ *  minute later. The recheck BUTTON stays exempt — re-verification is
+ *  the intended cheap retry. */
+const PHONE_PAIR_COOLDOWN_MS = 60_000;
+const phonePairLast = new Map();
+function phoneCooldownOk(phone) {
+  const last = phonePairLast.get(phone) || 0;
+  return Date.now() - last >= PHONE_PAIR_COOLDOWN_MS;
+}
+function markPhonePair(phone) {
+  phonePairLast.set(phone, Date.now());
+  if (phonePairLast.size > 1000) {
+    const cutoff = Date.now() - 10 * PHONE_PAIR_COOLDOWN_MS;
+    for (const [k, v] of phonePairLast) if (v < cutoff) phonePairLast.delete(k);
+  }
+}
+
+/** Private-chat-only policy: pairing codes, session lists and fleet
+ *  controls must never land in a group chat. Warns once per chat (the
+ *  warning itself is visible, so don't spam it on every attempt). */
+function isPrivateChat(msg) {
+  return msg?.chat?.type === 'private';
+}
+const publicChatWarned = new Set();
+async function refusePublic(chatId) {
+  if (publicChatWarned.has(chatId)) return;
+  publicChatWarned.add(chatId);
+  publicChatWarnedGuard();
+  await sendRich(bot, chatId, {
+    title: '🔒 Private chat only',
+    sections: [
+      { text: 'Pairing codes, session lists and fleet controls are sensitive — they only run in a <b>private chat</b> with me.\nTap me → <code>/start</code> → run the command there.' },
+    ],
+    keyboard: { inline_keyboard: [[{ text: '⬅️ Menu', callback_data: 'nav:menu' }]] },
+  }).catch(() => {});
+}
+function publicChatWarnedGuard() {
+  if (publicChatWarned.size > 200) publicChatWarned.clear();
+}
+
 
   // ── Community-gate UI — join/follow buttons used across the panel ──
   const gateButtons = (phone) => ({
@@ -182,6 +236,7 @@ function floodOk(userId) {
           dmJid: telegramJid(chatId),
           chatJid: telegramJid(chatId),
           name: from?.first_name || from?.username || 'unknown',
+          requesterId: String(from?.id ?? ''),
         });
         await edit(
           `⚠️ Couldn't verify the community gate right now (${gate.note || 'verification unavailable'}). ` +
@@ -195,7 +250,7 @@ function floodOk(userId) {
 
     // Gate passed — pair directly, code delivered to THIS chat
     try {
-      await pairSession(phone, { notifyJid: telegramJid(chatId) });
+      await pairSession(phone, { notifyJid: telegramJid(chatId), pairedBy: String(from?.id ?? '') });
       await edit(
         `🔌 *Pairing channel open for +${phone}.*\n\n` +
         `${gate.advisory ? '(Channel follow could not be confirmed — counted on trust.)\n\n' : ''}` +
@@ -286,10 +341,16 @@ export async function startTelegramBot() {
     ],
   });
 
-  async function sendSessionsList(chatId) {
-    const all = listSessions();
+  async function sendSessionsList(chatId, from) {
+    const admin = from ? isAdmin(from) : true;
+    const every = listSessions();
+    // Non-admins only ever see sessions THEY linked (pairedBy binding) —
+    // the full fleet roster (every phone number) is admin-only data.
+    const all = admin ? every : every.filter((sn) => sn.pairedBy === String(from?.id ?? ''));
     if (!all.length) {
-      return reply(chatId, `No linked sessions yet — tap *Pair a number* below.`, { keyboard: mainMenuKeyboard(false) });
+      return reply(chatId, admin
+        ? `No linked sessions yet — tap *Pair a number* below.`
+        : `No sessions linked from your account yet.\nSelf-pair one with /pair <number> — the number just has to be in the support group and following the channel.`, { keyboard: mainMenuKeyboard(false) });
     }
     const icon = (st) =>
       st === 'online' ? '🟢' :
@@ -308,7 +369,9 @@ export async function startTelegramBot() {
       .filter((sn) => sn.lastError && sn.status !== 'online')
       .map((sn) => `⚠️ +${sn.phone}: ${esc(sn.lastError)}`);
     await sendRich(bot, chatId, {
-      title: `📋 Linked Sessions (${all.length}/${MAX_EXTRA_SESSIONS})`,
+      title: admin
+        ? `📋 Linked Sessions (${all.length}/${MAX_EXTRA_SESSIONS})`
+        : `📋 Your Sessions (${all.length})`,
       sections: [
         { table: { headers: ['#', 'Number', 'Name', 'Status', 'Since UTC'], rows } },
         ...(notes.length ? [{ text: notes.join('\n') }] : []),
@@ -332,11 +395,14 @@ export async function startTelegramBot() {
           ].join('\n') + '</blockquote>' },
         { heading: '🚀 Fleet', text:
           '<blockquote>' + [
-            cmd('/sessions', 'every session, live status'),
+            cmd('/status', 'connection health of your linked sessions'),
+            cmd('/restart [number]', 'reconnect your session (admins: any / all)'),
+            cmd('/sessions', 'session list (admins see the fleet, you see yours)'),
             cmd('/reload', 'reconnect all saved sessions (admin)'),
             cmd('/logoutall', 'wipe the whole fleet (owner)'),
             cmd('/broadcast <text>', 'send to all groups of all sessions (owner)'),
           ].join('\n') + '</blockquote>' },
+        { text: '🔐 <b>Safety</b> — pairing and fleet commands run in our <b>private chat only</b> (pairing codes never land in a group), pairing is rate-limited per user and per number, and every session is bound to the account that linked it — /status and /restart only ever touch your own numbers.' },
         { heading: '🛡 Admin', text:
           '<blockquote>' + [
             cmd('/addadmin <id>', 'grant admin (owner)'),
@@ -429,12 +495,63 @@ export async function startTelegramBot() {
 
   // ── /sessions ───────────────────────────────────────────────────────
   bot.onText(/\/sessions|\/listpairs/, async (msg) => {
-    await sendSessionsList(msg.chat.id);
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
+    await sendSessionsList(msg.chat.id, msg.from);
+  });
+
+  // ── /status — your sessions' connection health (alias of /sessions) ──
+  bot.onText(/\/status/, async (msg) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
+    await sendSessionsList(msg.chat.id, msg.from);
+  });
+
+  // ── /restart [number] — reconnect one linked session ────────────────
+  bot.onText(/\/restart(?:\s+(\S+))?/, async (msg, match) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
+    const chatId = msg.chat.id;
+    const admin = isAdmin(msg.from);
+    let phone = match?.[1] ? normalizePhone(match[1]) : null;
+
+    const mine = listSessions().filter((sn) => sn.pairedBy === String(msg.from.id));
+    if (!admin) {
+      if (!phone) {
+        if (mine.length === 1) phone = mine[0].phone;
+        else if (mine.length > 1) {
+          return reply(chatId, `You have ${mine.length} linked sessions — pick one:\n${mine.map((sn) => `• \`/restart ${sn.phone}\` — ${sn.status}`).join('\n')}`);
+        } else {
+          return reply(chatId, `No session linked from your account yet — pair one with /pair <number>.`);
+        }
+      } else if (!mine.some((sn) => sn.phone === phone)) {
+        return reply(chatId, `🔒 +${phone} isn't linked from your account — you can only restart your own sessions.`);
+      }
+    } else if (!phone) {
+      const up = listSessions().filter((sn) => sn.status === 'online' || sn.status === 'reconnecting');
+      if (!up.length) return reply(chatId, `No online sessions to restart — check /sessions.`);
+      phone = null; // restart all below
+      const status = await bot.sendMessage(chatId, `🔁 Restarting ${up.length} session(s)…`);
+      const results = [];
+      for (const sn of up) {
+        try { await restartSession(sn.phone, { notifyJid: telegramJid(chatId) }); results.push(`✅ +${sn.phone}`); }
+        catch (err) { results.push(`❌ +${sn.phone}: ${err.message || err}`); }
+      }
+      return bot.editMessageText(clip(results.join('\n')), { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+    }
+
+    const status = await bot.sendMessage(chatId, `🔁 Restarting +${phone}…`);
+    try {
+      await restartSession(phone, { notifyJid: telegramJid(chatId) });
+      await bot.editMessageText(`🔄 *+${phone} is reconnecting* from its saved credentials — I'll confirm here once it's back online.`, { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+    } catch (err) {
+      await bot.editMessageText(`❌ Restart failed: ${err.message || err}`, { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
+    }
   });
 
   // ── /pair <number> ──────────────────────────────────────────────────
   bot.onText(/\/pair(?:\s+(\S+))?/, async (msg, match) => {
     const chatId = msg.chat.id;
+    // The pairing CODE lands in this chat — groups would expose it to
+    // everyone. Private chat only, no exceptions.
+    if (!isPrivateChat(msg)) return refusePublic(chatId);
     const raw = match?.[1];
 
     if (!raw) {
@@ -458,6 +575,10 @@ export async function startTelegramBot() {
     if (!floodOk(msg.from.id)) {
       return reply(chatId, `⏳ Slow down a moment — too many pairing attempts in the last minute.`);
     }
+    if (!phoneCooldownOk(phone)) {
+      return reply(chatId, `⏳ A pairing attempt for *+${phone}* was made less than a minute ago — give it a moment, then try again.`);
+    }
+    markPhonePair(phone);
 
     const activeCount = listSessions().filter((s) => s.active || s.status === 'awaiting_code').length;
     if (activeCount >= MAX_EXTRA_SESSIONS) {
@@ -468,7 +589,7 @@ export async function startTelegramBot() {
     if (isAdmin(msg.from)) {
       const status = await bot.sendMessage(chatId, `⏳ Opening a pairing channel for *+${phone}*…`, { parse_mode: 'Markdown' });
       try {
-        await pairSession(phone, { notifyJid: telegramJid(chatId) });
+        await pairSession(phone, { notifyJid: telegramJid(chatId), pairedBy: String(msg.from.id) });
         await bot.editMessageText(
           `🔌 *Pairing channel open for +${phone}.*\n\nThe code arrives in the next message — enter it on that phone within a couple of minutes:\nWhatsApp → Settings → Linked Devices → Link a Device → *Link with phone number instead*.`,
           { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' }
@@ -489,6 +610,7 @@ export async function startTelegramBot() {
 
   // ── /pairrequests ───────────────────────────────────────────────────
   bot.onText(/\/pairrequests/, async (msg) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
     if (!isAdmin(msg.from)) return reply(msg.chat.id, `🔒 Admin only.`);
     const all = getPairRequests();
     if (!all.length) return reply(msg.chat.id, `No pending pairing requests.`);
@@ -502,6 +624,7 @@ export async function startTelegramBot() {
   bot.onText(/\/pairdeny(?:\s+(\S+))?/, (msg, match) => handleApproval(msg, match, false));
 
   async function handleApproval(msg, match, approve) {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
     if (!isAdmin(msg.from)) return reply(msg.chat.id, `🔒 Admin only.`);
     const chatId = msg.chat.id;
 
@@ -524,7 +647,7 @@ export async function startTelegramBot() {
 
     const status = await bot.sendMessage(chatId, `⏳ Approving +${req.phone}…`);
     try {
-      await pairSession(req.phone, { notifyJid: req.dmJid });
+      await pairSession(req.phone, { notifyJid: req.dmJid, pairedBy: req.requesterId || null });
       removePairRequest(req.phone);
       await bot.editMessageText(`✅ *Approved — pairing channel open for +${req.phone}.* The code is being delivered to the requester.`,
         { chat_id: chatId, message_id: status.message_id, parse_mode: 'Markdown' });
@@ -581,6 +704,7 @@ export async function startTelegramBot() {
       const phone = normalizePhone(data.slice(8));
       const chatId = query.message?.chat?.id;
       if (!chatId || !phone) return bot.answerCallbackQuery(query.id);
+      if (query.message?.chat?.type !== 'private') return bot.answerCallbackQuery(query.id, { text: '🔒 Private chat only — tap this in our DM.' });
       await bot.answerCallbackQuery(query.id, { text: 'Checking both again…' });
       return runCommunityGate(chatId, phone, { from: query.from, editMessage: query.message });
     }
@@ -612,7 +736,12 @@ export async function startTelegramBot() {
         });
         return;
       }
-      if (nav === 'sessions') return sendSessionsList(chatId);
+      if (nav === 'sessions') {
+        if (query.message?.chat?.type !== 'private') {
+          return bot.answerCallbackQuery(query.id, { text: '🔒 Private chat only — open me in a DM.' });
+        }
+        return sendSessionsList(chatId, query.from);
+      }
       if (nav === 'help') return sendHelpGuide(chatId, admin);
       if (nav === 'menu') {
         return bot.sendMessage(chatId,
@@ -644,9 +773,12 @@ export async function startTelegramBot() {
       return bot.answerCallbackQuery(query.id);
     }
 
-    // ── Pairing approval buttons (admins only) ─────────────────────────
+    // ── Pairing approval buttons (admins only, private chat only) ────
     if (!isAdmin(query.from)) {
       return bot.answerCallbackQuery(query.id, { text: 'Admins only.' });
+    }
+    if (query.message?.chat?.type !== 'private') {
+      return bot.answerCallbackQuery(query.id, { text: '🔒 Private chat only.' });
     }
     const approve = data.startsWith('papprove:');
     const deny = data.startsWith('pdeny:');
@@ -690,6 +822,7 @@ export async function startTelegramBot() {
 
   // ── /unpair <number> ────────────────────────────────────────────────
   bot.onText(/\/unpair(?:\s+(\S+))?/, async (msg, match) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
     if (!isAdmin(msg.from)) return reply(msg.chat.id, `🔒 Admin only.`);
     if (!match?.[1]) return reply(msg.chat.id, `Usage: \`/unpair <number>\``);
     try {
@@ -702,6 +835,7 @@ export async function startTelegramBot() {
 
   // ── /logoutall (owner) ───────────────────────────────────────────────
   bot.onText(/\/logoutall/, async (msg) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
     if (!isOwner(msg.from)) return reply(msg.chat.id, `🔒 Owner only.`);
     const status = await bot.sendMessage(msg.chat.id, `⏳ Logging out every paired session…`);
     const results = await removeAllSessions();
@@ -715,6 +849,7 @@ export async function startTelegramBot() {
 
   // ── /reload (admin) ──────────────────────────────────────────────────
   bot.onText(/\/reload/, async (msg) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
     if (!isAdmin(msg.from)) return reply(msg.chat.id, `🔒 Admin only.`);
     const status = await bot.sendMessage(msg.chat.id, `🔄 Reconnecting all saved sessions…`);
     await resumeExtraSessions();
@@ -724,6 +859,7 @@ export async function startTelegramBot() {
 
   // ── /broadcast <text> (owner) ───────────────────────────────────────
   bot.onText(/\/broadcast(?:\s+([\s\S]+))?/, async (msg, match) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
     if (!isOwner(msg.from)) return reply(msg.chat.id, `🔒 Owner only.`);
     const text = match?.[1]?.trim();
     if (!text) return reply(msg.chat.id, `Usage: \`/broadcast <message>\` — sends to every group of every linked session.`);
@@ -756,6 +892,7 @@ export async function startTelegramBot() {
 
   // ── /addadmin <id> (owner) ───────────────────────────────────────────
   bot.onText(/\/addadmin(?:\s+(\S+))?/, async (msg, match) => {
+    if (!isPrivateChat(msg)) return refusePublic(msg.chat.id);
     if (!isOwner(msg.from)) return reply(msg.chat.id, `🔒 Owner only.`);
     const id = match?.[1]?.replace(/[^0-9]/g, '');
     if (!id) return reply(msg.chat.id, `Usage: \`/addadmin <telegram_user_id>\``);

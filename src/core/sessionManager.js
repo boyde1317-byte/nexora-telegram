@@ -187,6 +187,7 @@ export function listSessions() {
       connectedAt: s.connectedAt || null,
       lastError: s.lastError || null,
       active: s.status === 'online',
+      pairedBy: s.pairedBy || null,
     });
   }
   return out;
@@ -548,7 +549,7 @@ function prunePairRequests() {
  * File a pairing request from a non-super-owner user. Throws with a plain
  * message on validation failure; returns { phone, duplicate } otherwise.
  */
-export function addPairRequest(rawPhone, { dmJid, chatJid, name }) {
+export function addPairRequest(rawPhone, { dmJid, chatJid, name, requesterId = null }) {
   prunePairRequests();
   const phone = normalizePhone(rawPhone);
   if (phone.length < 7) {
@@ -570,7 +571,7 @@ export function addPairRequest(rawPhone, { dmJid, chatJid, name }) {
   if (mine) {
     throw new Error(`You already have a pending request for +${mine.phone} — wait for it to be approved, denied, or expire (~15 min) before requesting another.`);
   }
-  pairRequests.set(phone, { phone, dmJid, chatJid, name, ts: Date.now() });
+  pairRequests.set(phone, { phone, dmJid, chatJid, name, requesterId, ts: Date.now() });
   return { phone, duplicate: false };
 }
 
@@ -591,7 +592,7 @@ export function removePairRequest(idOrPhone) {
   return pairRequests.delete(normalizePhone(idOrPhone));
 }
 
-export async function pairSession(rawPhone, { notifyJid } = {}) {
+export async function pairSession(rawPhone, { notifyJid, pairedBy = null } = {}) {
   const phone = normalizePhone(rawPhone);
   if (phone.length < 7) {
     throw new Error('That does not look like a valid phone number — include the country code, e.g. `.pair 2335XXXXXXXX`.');
@@ -636,6 +637,10 @@ export async function pairSession(rawPhone, { notifyJid } = {}) {
     lastError: null,
     reconnectAttempts: 0,
     pairingCode: null,
+    // Telegram user id that requested this link — powers ownership checks
+    // for /status and /restart on the control panel (null when paired via
+    // the WhatsApp-side .pair flow).
+    pairedBy,
   });
 
   await spawnSessionSocket(phone, 'pairing', notifyJid);
@@ -679,6 +684,48 @@ export async function resumeExtraSessions() {
   } finally {
     resuming = false;
   }
+}
+
+/**
+ * Restart one linked session: tear down its live socket (if any) and
+ * respawn from the saved creds. Ownership is enforced by the caller
+ * (Telegram /restart checks pairedBy; admins may restart anything).
+ */
+export async function restartSession(rawPhone, { notifyJid } = {}) {
+  const phone = normalizeSessionPhone(rawPhone);
+  const entry = sessions.get(phone);
+  const dir = sessionDir(phone);
+
+  if (entry?.status === 'awaiting_code' || entry?.status === 'starting') {
+    throw new Error(`A pairing for +${phone} is still in progress — wait for it to finish or expire first.`);
+  }
+  const hasCreds = (entry && (entry.everOnline || entry.status === 'reconnecting')) || isRegistered(dir);
+  if (!hasCreds) {
+    throw new Error(`No linked session found for +${phone}. Pair it first.`);
+  }
+
+  // Tear down the live socket quietly (listeners off first so the close
+  // event doesn't trigger the reconnect/backoff logic for this socket).
+  if (entry?.sock) {
+    try { entry.sock.ev.removeAllListeners(); } catch (_) {}
+    try { entry.sock.end(undefined); } catch (_) {}
+  }
+
+  sessions.set(phone, {
+    phone,
+    status: 'reconnecting',
+    sock: null,
+    jid: entry?.jid || `${phone}@s.whatsapp.net`,
+    name: entry?.name || null,
+    connectedAt: null,
+    lastError: null,
+    reconnectAttempts: 0,
+    pairingCode: null,
+    everOnline: true,
+    pairedBy: entry?.pairedBy || null,
+  });
+  console.log(`[SESSION] Manual restart of +${phone} — respawning from saved creds`);
+  await spawnSessionSocket(phone, 'resume', notifyJid);
 }
 
 /**
