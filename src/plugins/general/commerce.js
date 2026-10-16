@@ -91,30 +91,55 @@ export default {
 
       // ── .product — Message.productMessage ──────────────────────────────
       if (command === 'product' || command === 'productcard') {
-        const [title, priceTok, desc, url] = parts;
+        // Parts: Title | Price | [Description] [| flag:value...]
+        // Flags (any position after the price, key:value form):
+        //   sale:<price>   — salePriceAmount1000 (client strikes through the
+        //                    original price and highlights the sale price)
+        //   count:<n>      — productImageCount (gallery "n photos" indicator)
+        //   retailer:<id>  — retailerId (shop handle shown on the card)
+        //   url:<link>     — "Visit" link on the card
+        const [title, priceTok, ...rest] = parts;
         const price = parsePrice(priceTok);
         if (!title || !price) {
-          return await m.reply.error(`Invalid format. Usage: \`${p}product ${'Title'} | 50 GHS | Description\``);
+          return await m.reply.error(`Invalid format. Usage: \`${p}product ${'Title'} | 50 GHS | Description | sale:40 | count:3\``);
         }
+
+        const flags = {};
+        const descParts = [];
+        for (const tok of rest) {
+          const fm = tok.match(/^(sale|count|retailer|url):(.+)$/i);
+          if (fm) flags[fm[1].toLowerCase()] = fm[2].trim();
+          else descParts.push(tok);
+        }
+        const desc = descParts.join(' ') || title;
+        const sale = flags.sale ? parsePrice(flags.sale) : null;
+        const count = Math.max(1, Math.min(30, parseInt(flags.count, 10) || 1));
+
         const img = await resolveImage(m);
         if (!img) return await m.reply.error('No image available — reply to an image or set the default menu image.');
 
         await sock.sendMessage(m.from, {
           product: {
+            // Every embedded ProductSnapshot field the fork's proto carries:
+            productId: 'SB7-' + Math.random().toString(16).slice(2, 8).toUpperCase(),
             title: title.slice(0, 160),
-            description: (desc || title).slice(0, 400),
+            description: desc.slice(0, 400),
             priceAmount1000: Math.round(price.amount * 1000),
             currencyCode: price.currency,
-            ...(url ? { url } : {})
+            ...(sale ? { salePriceAmount1000: Math.round(sale.amount * 1000) } : {}),
+            productImageCount: count,
+            firstImageId: 'IMG-' + Math.random().toString(16).slice(2, 10).toUpperCase(),
+            ...(flags.retailer ? { retailerId: flags.retailer.slice(0, 64) } : {}),
+            ...(flags.url ? { url: flags.url.slice(0, 256) } : {})
           },
           businessOwnerJid: ownJid(sock),
           body: `${title}`,
-          footer: `${price.amount} ${price.currency}`,
+          footer: `${sale ? sale.amount : price.amount} ${price.currency}`,
           image: img.buffer,
         }, { quoted: m });
 
         return await m.reply.success(
-          `🛍️ Product card sent — *${title}* @ ${price.amount} ${price.currency} (image: ${img.origin})`
+          `🛍️ Product card sent — *${title}* @ ${price.amount} ${price.currency}${sale ? ` (sale: ${sale.amount})` : ''}${count > 1 ? ` • ${count} images` : ''} (image: ${img.origin})`
         );
       }
 
