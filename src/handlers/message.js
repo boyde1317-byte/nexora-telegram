@@ -731,6 +731,8 @@ try {
     args,
     body,
     prefix,
+    commandName,
+    resolvedName,
     isGroup: isGroupMsg,
     isOwner: ownerCheck,
     rawMessage,
