@@ -31,6 +31,7 @@
  */
 
 import { imageManager } from '../../images/imageManager.js';
+import brand from '../../../config/brand.js';
 
 const DEFAULT_CURRENCY = 'GHS';
 
@@ -71,7 +72,7 @@ async function resolveImage(m) {
 
 export default {
   name: 'product',
-  aliases: ['productcard', 'ordercard', 'pollresult', 'invoice', 'requestpayment', 'payreq'],
+  aliases: ['productcard', 'ordercard', 'pollresult', 'invoice', 'requestpayment', 'payreq', 'catalog'],
   category: 'general',
   description: 'Native WA commerce cards: .product (product card), .ordercard (order bubble), .pollresult (result snapshot).',
   cooldown: 10000,
@@ -117,7 +118,34 @@ export default {
         );
       }
 
-      // ── .ordercard — Message.orderMessage ──────────────────────────────
+      // ── .catalog — ProductMessage.catalog (embedded CatalogSnapshot) ────
+      // Unlike the product-LIST rows (which render purely from a server-side
+      // business catalog and can't be faked), the catalog CARD variant embeds
+      // its own data on the wire: catalogImage + title + description. Fork
+      // v0.3.18-r10 builder: pass `catalog` instead of `product`.
+      if (command === 'catalog') {
+        const [title, ...descParts] = parts;
+        if (!title) {
+          return await m.reply.error(`Invalid format. Usage: \`${p}catalog NEXORA Store | Premium hosting & tools\` — reply to an image for the catalog cover.`);
+        }
+        const img = await resolveImage(m);
+        if (!img) return await m.reply.error('No image available — reply to an image or set the default menu image.');
+
+        await sock.sendMessage(m.from, {
+          businessOwnerJid: ownJid(sock),
+          catalog: {
+            title: title.slice(0, 140),
+            description: (descParts.join(' ') || title).slice(0, 300)
+          },
+          body: title.slice(0, 140),
+          footer: brand.copyright || 'NEXORA',
+          image: img.buffer
+        }, { quoted: m });
+
+        return await m.reply.success(`🏬 Catalog card sent — *${title}* (cover: ${img.origin})`);
+      }
+
+            // ── .ordercard — Message.orderMessage ──────────────────────────────
       if (command === 'ordercard') {
         const [title, priceTok, note] = parts;
         const price = parsePrice(priceTok);
