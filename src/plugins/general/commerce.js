@@ -101,12 +101,27 @@ export default {
         const [title, priceTok, ...rest] = parts;
         const price = parsePrice(priceTok);
         if (!title || !price) {
-          return await m.reply.error(`Invalid format. Usage: \`${p}product ${'Title'} | 50 GHS | Description | sale:40 | count:3\``);
+          return await m.reply.error(`Invalid format. Usage: \`${p}product ${'Title'} | 50 GHS | Description | sale:40 | btn:Buy Now >> https://link\``);
         }
 
         const flags = {};
+        const btns = [];
         const descParts = [];
         for (const tok of rest) {
+          // Button flags (make the card interactive — renders as a native-flow
+          // interactive message with the product card as the header):
+          //   btn:Text >> https://...   → cta_url ("Buy Now" style link)
+          //   btncopy:Text >> CODE       → cta_copy (copies CODE to clipboard)
+          //   btnid:Text >> any-id      → quick_reply (sends the id back —
+          //                                hookable for economy/purchase flows)
+          const bm = tok.match(/^(btn|btncopy|btnid):(.+?)\s*>>\s*(.+)$/i);
+          if (bm) {
+            const kind = bm[1].toLowerCase();
+            btns.push(kind === 'btn' ? { text: bm[2].trim(), url: bm[3].trim() }
+                    : kind === 'btncopy' ? { text: bm[2].trim(), copy: bm[3].trim() }
+                    : { text: bm[2].trim(), id: bm[3].trim() });
+            continue;
+          }
           const fm = tok.match(/^(sale|count|retailer|url):(.+)$/i);
           if (fm) flags[fm[1].toLowerCase()] = fm[2].trim();
           else descParts.push(tok);
@@ -118,23 +133,47 @@ export default {
         const img = await resolveImage(m);
         if (!img) return await m.reply.error('No image available — reply to an image or set the default menu image.');
 
+        const snapshot = {
+          // Every embedded ProductSnapshot field the fork's proto carries:
+          productId: 'SB7-' + Math.random().toString(16).slice(2, 8).toUpperCase(),
+          title: title.slice(0, 160),
+          description: desc.slice(0, 400),
+          priceAmount1000: Math.round(price.amount * 1000),
+          currencyCode: price.currency,
+          ...(sale ? { salePriceAmount1000: Math.round(sale.amount * 1000) } : {}),
+          productImageCount: count,
+          firstImageId: 'IMG-' + Math.random().toString(16).slice(2, 10).toUpperCase(),
+          ...(flags.retailer ? { retailerId: flags.retailer.slice(0, 64) } : {}),
+          ...(flags.url ? { url: flags.url.slice(0, 256) } : {})
+        };
+        const priceLabel = `${sale ? sale.amount : price.amount} ${price.currency}`;
+
+        if (btns.length) {
+          // Interactive product card — the card rides the interactive header,
+          // native-flow buttons render beneath it (fork r11 productHeader).
+          await sock.sendMessage(m.from, {
+            nativeFlow: btns,
+            productHeader: {
+              businessOwnerJid: ownJid(sock),
+              product: snapshot,
+              body: `${title}`,
+              footer: priceLabel,
+              image: img.buffer
+            },
+            text: desc.slice(0, 512),
+            footer: flags.retailer ? `${flags.retailer} • ${priceLabel}` : priceLabel
+          }, { quoted: m });
+
+          return await m.reply.success(
+            `🛍️ Interactive product card sent — *${title}* @ ${priceLabel} • ${btns.length} button${btns.length > 1 ? 's' : ''} (image: ${img.origin})`
+          );
+        }
+
         await sock.sendMessage(m.from, {
-          product: {
-            // Every embedded ProductSnapshot field the fork's proto carries:
-            productId: 'SB7-' + Math.random().toString(16).slice(2, 8).toUpperCase(),
-            title: title.slice(0, 160),
-            description: desc.slice(0, 400),
-            priceAmount1000: Math.round(price.amount * 1000),
-            currencyCode: price.currency,
-            ...(sale ? { salePriceAmount1000: Math.round(sale.amount * 1000) } : {}),
-            productImageCount: count,
-            firstImageId: 'IMG-' + Math.random().toString(16).slice(2, 10).toUpperCase(),
-            ...(flags.retailer ? { retailerId: flags.retailer.slice(0, 64) } : {}),
-            ...(flags.url ? { url: flags.url.slice(0, 256) } : {})
-          },
+          product: snapshot,
           businessOwnerJid: ownJid(sock),
           body: `${title}`,
-          footer: `${sale ? sale.amount : price.amount} ${price.currency}`,
+          footer: priceLabel,
           image: img.buffer,
         }, { quoted: m });
 
