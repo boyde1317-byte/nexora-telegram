@@ -149,18 +149,16 @@ export default {
         const priceLabel = `${sale ? sale.amount : price.amount} ${price.currency}`;
 
         if (btns.length) {
-          // Interactive product card — the card rides the interactive header,
-          // native-flow buttons render beneath it (fork r11 productHeader).
+          // Interactive product card — image header + title + price subtitle,
+          // native-flow buttons beneath (client-verified render path: WhatsApp
+          // consumer clients paint productMessage-in-header as nothing, so the
+          // visual card uses the imageMessage header instead).
           await sock.sendMessage(m.from, {
             nativeFlow: btns,
-            productHeader: {
-              businessOwnerJid: ownJid(sock),
-              product: snapshot,
-              body: `${title}`,
-              footer: priceLabel,
-              image: img.buffer
-            },
-            text: desc.slice(0, 512),
+            title: title.slice(0, 60),
+            subtitle: sale ? `${price.amount} ${price.currency} → ${sale.amount} ${price.currency}` : `${price.amount} ${price.currency}`,
+            image: img.buffer,
+            text: desc.slice(0, 512) || `${title}`,
             footer: flags.retailer ? `${flags.retailer} • ${priceLabel}` : priceLabel
           }, { quoted: m });
 
