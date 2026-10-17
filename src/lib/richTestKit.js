@@ -15,8 +15,7 @@ import {
   generateWAMessageFromContent,
 } from 'baileys';
 import { AIRich } from './NIXCODE.js';
-import { hoistAfterRelay } from './richMediaHoist.js';
-import { renderLatexToPngSvg } from './latexRenderer.js';
+import { hoistAfterRelay, rehostRichCardMedia } from './richMediaHoist.js';
 
 // ── V1 + V2 generators (imported from the fork's rich-message-utils.js) ─────
 import {
@@ -87,6 +86,7 @@ async function _relayGenerated(sock, jid, generated, options = {}) {
   // Generators embed quoted context via buildRichContextInfo / buildV2ContextInfo.
   // Do NOT pass quoted here — it would double-set contextInfo at the wrong level
   // and cause WhatsApp to drop native rendering on the message.
+  await rehostRichCardMedia(sock, generated.message); // move card images onto WA CDN pre-relay
   const message = await generateWAMessageFromContent(jid, generated.message, {
     userJid: sock.user?.id || '0@s.whatsapp.net',
   });
@@ -963,8 +963,8 @@ export async function testV1LatexImage(sock, jid, quoted) {
         { latexExpression: 'x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}' },
       ],
       headerText: 'LaTeX Image Rendering',
-      footer: 'NEXORA-MD • SVG renderer (mathjax-node + sharp, no Java)',
-    }, uploadFn, renderLatexToPngSvg);
+      footer: 'NEXORA-MD • mathjax-node default renderer',
+    }, uploadFn);
     await _relayGenerated(sock, jid, generated, { quoted });
     return 'V1 latex image ✓';
   } catch (err) {
@@ -999,8 +999,8 @@ export async function testV2LatexImage(sock, jid, quoted) {
         { latexExpression: 'e^{i\\pi} + 1 = 0' },
       ],
       headerText: 'LaTeX V2 Image',
-      footer: 'NEXORA-MD • base64 + SVG renderer (no Java)',
-    }, uploadFn, renderLatexToPngSvg);
+      footer: 'NEXORA-MD • base64 + mathjax-node',
+    }, uploadFn);
     await _relayGenerated(sock, jid, generated, { quoted });
     return 'V2 latex image ✓';
   } catch (err) {
@@ -1326,7 +1326,7 @@ export async function testMoonsonFbCombo(sock, jid, quoted) {
       '🔗 **Link:** https://download.samplelib.com/mp4/sample-5s.mp4'
     )
     .addTip('_Tap the video to play_')
-    .setFooter('© NEXORA-MD by Moonson')
+    .setFooter('© NEXORA-MD by Aizen')
     .send(jid, { quoted });
   return 'Moonson fb combo ✓';
 }

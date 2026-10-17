@@ -18,10 +18,13 @@
  */
 
 import { generateWAMessageFromContent, generateMapContent, generateMapWithTable } from 'baileys';
-import { hoistAfterRelay } from './richMediaHoist.js';
 import capabilities from '../core/capabilities.js';
+import { hoistAfterRelay, rehostRichCardMedia } from './richMediaHoist.js';
 
 export async function relayGenerated(sock, jid, generated) {
+  // Primary fix: move card image URLs onto WhatsApp's CDN before relay so the
+  // on-device client can actually fetch them (third-party hosts often can't).
+  await rehostRichCardMedia(sock, generated.message);
   const message = await generateWAMessageFromContent(jid, generated.message, {
     userJid: sock.user?.id || '0@s.whatsapp.net',
   });
