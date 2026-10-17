@@ -4,7 +4,7 @@ WORKDIR /app
 
 # git + ca-certificates are needed to fetch the baileys git dependency —
 # node:20-slim ships neither. Must come BEFORE any git command below.
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy package files first for better Docker layer caching
