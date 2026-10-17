@@ -980,7 +980,7 @@ class AIRich extends BaseBuilder {
 
 	addImage(imageUrl) {
 		if (!(typeof imageUrl === 'string' || (Array.isArray(imageUrl) && imageUrl.every((v) => typeof v === 'string')))) {
-			throw new TypeError('imageUrl must be a string or array of strings');
+			throw new TypeError('imageUrl must be a string or an array of strings');
 		}
 		const imageUrls = Array.isArray(imageUrl)
 			? imageUrl.map((url) => ({
@@ -1006,23 +1006,61 @@ class AIRich extends BaseBuilder {
 			},
 		});
 
+		// Re-host imagine images on WhatsApp's own media CDN before the card
+		// goes out: the on-device client must fetch media.url itself, and third-
+		// party hosts (hotlink quirks, mime drift) show up as the broken-image
+		// placeholder. WA media URLs + true content-type are exactly what real
+		// Meta AI imagine cards carry, so the image paints reliably.
+		this._pendingMedia = this._pendingMedia || [];
+
 		imageUrls.forEach(({ imagePreviewUrl }) => {
-			this._sections.push(
-				AIRich.newLayout('Single', {
-					media: {
-						url: imagePreviewUrl,
-						mime_type: 'image/png',
-					},
-					imagine_type: 'IMAGE',
-					status: {
-						status: 'READY',
-					},
-					__typename: 'GenAIImaginePrimitive',
-				})
-			);
+			const primitive = {
+				media: {
+					url: imagePreviewUrl,
+					mime_type: AIRich.guessImageMime(imagePreviewUrl),
+				},
+				imagine_type: 'IMAGE',
+				status: {
+					status: 'READY',
+				},
+				__typename: 'GenAIImaginePrimitive',
+			};
+			this._sections.push(AIRich.newLayout('Single', primitive));
+			this._pendingMedia.push(AIRich.rehostOnWhatsapp(this.#client, imagePreviewUrl, primitive, imageUrls));
 		});
 
 		return this;
+	}
+
+	static guessImageMime(url) {
+		const m = String(url).toLowerCase().match(/\.(jpe?g|png|webp|gif)(?:$|\?)/);
+		if (!m) return 'image/jpeg';
+		return { png: 'image/png', webp: 'image/webp', gif: 'image/gif' }[m[1]] || 'image/jpeg';
+	}
+
+	static async rehostOnWhatsapp(client, sourceUrl, primitive, gridImageUrls = null) {
+		try {
+			const res = await fetch(sourceUrl, { signal: AbortSignal.timeout(15000) });
+			if (!res.ok) throw new Error('fetch ' + res.status);
+			const buffer = Buffer.from(await res.arrayBuffer());
+			if (!buffer.length) throw new Error('empty body');
+			const mime = (res.headers.get('content-type') || '').split(';')[0] || AIRich.guessImageMime(sourceUrl);
+			if (!/^image\//.test(mime)) throw new Error('not an image: ' + mime);
+			const ext = (mime.split('/')[1] || 'jpg').replace(/[^a-z0-9]/g, '') || 'jpg';
+			const up = await client.waUploadToServer(buffer, { mimetype: mime, filename: 'imagine.' + ext });
+			const hostedUrl = up?.url || up?.directMediaUrl;
+			if (!hostedUrl) throw new Error('no upload url');
+			primitive.media.url = hostedUrl;
+			primitive.media.mime_type = mime;
+			if (gridImageUrls) {
+				for (const g of gridImageUrls) {
+					if (g.imagePreviewUrl === sourceUrl) {
+						g.imagePreviewUrl = hostedUrl;
+						g.imageHighResUrl = hostedUrl;
+					}
+				}
+			}
+		} catch (_) { /* keep original URL — client-side fetch is the fallback */ }
 	}
 
 	addVideo(videoUrl) {
@@ -1238,6 +1276,10 @@ class AIRich extends BaseBuilder {
 	}
 
 	async send(jid, { forwarded, includesUnifiedResponse, includesSubmessages, ...options } = {}) {
+		if (this._pendingMedia?.length) {
+			await Promise.allSettled(this._pendingMedia);
+			this._pendingMedia = [];
+		}
 		const msg = this.build({ forwarded, includesUnifiedResponse, includesSubmessages, ...options });
 
 		const message = await generateWAMessageFromContent(jid, msg, {
