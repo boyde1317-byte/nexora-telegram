@@ -1048,8 +1048,8 @@ class AIRich extends BaseBuilder {
 			if (!/^image\//.test(mime)) throw new Error('not an image: ' + mime);
 			const ext = (mime.split('/')[1] || 'jpg').replace(/[^a-z0-9]/g, '') || 'jpg';
 			const up = await client.waUploadToServer(buffer, { mimetype: mime, filename: 'imagine.' + ext });
-			const hostedUrl = up?.url || up?.directMediaUrl;
-			if (!hostedUrl) throw new Error('no upload url');
+			const hostedUrl = up?.mediaUrl || up?.url || up?.directPath && ('https://mmg.whatsapp.net' + up.directPath);
+			if (!hostedUrl) throw new Error('no upload url in ' + Object.keys(up || {}).join(','));
 			primitive.media.url = hostedUrl;
 			primitive.media.mime_type = mime;
 			if (gridImageUrls) {
@@ -1060,7 +1060,9 @@ class AIRich extends BaseBuilder {
 					}
 				}
 			}
-		} catch (_) { /* keep original URL — client-side fetch is the fallback */ }
+		} catch (e) {
+			console.warn('[AIRich] imagine rehost failed, keeping original URL:', e?.message || e);
+		}
 	}
 
 	addVideo(videoUrl) {
