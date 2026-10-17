@@ -122,7 +122,7 @@ export default {
                     : { text: bm[2].trim(), id: bm[3].trim() });
             continue;
           }
-          const fm = tok.match(/^(sale|count|retailer|url):(.+)$/i);
+          const fm = tok.match(/^(sale|count|retailer|url|hdr):(.+)$/i);
           if (fm) flags[fm[1].toLowerCase()] = fm[2].trim();
           else descParts.push(tok);
         }
@@ -148,11 +148,32 @@ export default {
         };
         const priceLabel = `${sale ? sale.amount : price.amount} ${price.currency}`;
 
+        if (btns.length && flags.hdr === 'card') {
+          // TRUE FUSION ATTEMPT — full product snapshot card inside the
+          // interactive header (fork r12: hasMediaAttachment false) with the
+          // native-flow buttons beneath it. If the client paints this, it's the
+          // real "product card + interactive" unit.
+          await sock.sendMessage(m.from, {
+            nativeFlow: btns,
+            productHeader: {
+              businessOwnerJid: ownJid(sock),
+              product: snapshot,
+              body: `${title}`,
+              footer: priceLabel,
+              image: img.buffer
+            },
+            text: desc.slice(0, 512) || `${title}`,
+            footer: flags.retailer ? `${flags.retailer} • ${priceLabel}` : priceLabel
+          }, { quoted: m });
+
+          return await m.reply.success(
+            `🛍️ Fusion card sent (product-in-header, r12) — *${title}* @ ${priceLabel} • ${btns.length} button${btns.length > 1 ? 's' : ''}. Did the product card paint?`
+          );
+        }
+
         if (btns.length) {
           // Interactive product card — image header + title + price subtitle,
-          // native-flow buttons beneath (client-verified render path: WhatsApp
-          // consumer clients paint productMessage-in-header as nothing, so the
-          // visual card uses the imageMessage header instead).
+          // native-flow buttons beneath (client-verified render path).
           await sock.sendMessage(m.from, {
             nativeFlow: btns,
             title: title.slice(0, 60),
