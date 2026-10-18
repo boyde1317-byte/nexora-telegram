@@ -114,6 +114,14 @@ const rawConfig = {
     phoneNumber: process.env.PAIRING_PHONE || '',
   },
 
+  // ── Web pairing (free self-service page at /pair) ─────────────────────────
+  // mode: 'free' = instant pairing code | 'request' = queues into the shared
+  // admin approval queue (Telegram Approve/Deny cards + WhatsApp .pairapprove)
+  webPair: {
+    enabled: parseBool(process.env.WEB_PAIR_ENABLED, true),
+    mode: (process.env.WEB_PAIR_MODE || 'free').trim().toLowerCase(),
+  },
+
   // ── Session storage ───────────────────────────────────────────────────────
   sessionPath: process.env.SESSION_PATH || './session',
 

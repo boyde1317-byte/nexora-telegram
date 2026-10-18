@@ -14,6 +14,7 @@ import { client } from './src/core/client.js';
 import { assetManager } from './src/assets/assetManager.js';
 import { db } from './src/database/db.js';
 import brand from './config/brand.js';
+import { pairRouter } from './src/web/pairWeb.js';
 import { config, configValidation } from './config/index.js';
 
 const app = express();
@@ -45,6 +46,9 @@ const healthLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+// ── Free web pairing (own stricter rate limits; outside /api limiter) ──────
+app.use(pairRouter);
 
 app.use('/api/health', healthLimiter);
 app.use('/api/', apiLimiter);
@@ -161,6 +165,11 @@ app.get('/', (req, res) => {
         <p>Created by ${brand.creator} • Framework: ${brand.core}</p>
         <p><strong>Note:</strong> Check your server console logs to retrieve the pairing code or QR code.</p>
         <div class="status-badge">● Nexora Core v2 Ready</div>
+        <a href="/pair" style="
+          display:inline-block;margin-top:1.25rem;padding:0.7rem 1.6rem;
+          background-color:#25d366;color:#06130a;font-weight:700;
+          border-radius:10px;text-decoration:none;font-size:0.95rem;
+        ">📱 Pair your number — free</a>
         <p class="version">v${brand.version} • Node.js ${process.version}</p>
       </div>
     </body>

@@ -194,6 +194,24 @@ export function listSessions() {
 }
 
 /**
+ * Read the live pairing state of one phone — powers the free web pairing
+ * page (src/web/pairWeb.js). The pairing CODE is returned here and shown
+ * only to the web visitor holding the matching polling token; it is never
+ * sent over WhatsApp or Telegram for web pairs (no real notifyJid).
+ */
+export function getPairingState(rawPhone) {
+  const phone = normalizePhone(rawPhone);
+  const s = sessions.get(phone);
+  if (!s) return null;
+  return {
+    phone,
+    status: s.status,
+    pairingCode: s.pairingCode || null,
+    name: s.name || null,
+    lastError: s.lastError || null,
+  };
+}
+/**
  * Build and connect one extra session socket.
  * `phase` is 'pairing' (fresh, waiting for code entry) or 'resume'
  * (creds registered, just reconnecting).

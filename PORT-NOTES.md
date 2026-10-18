@@ -12,7 +12,8 @@ additive and goes inert when `TELEGRAM_BOT_TOKEN` is unset.
 | `src/core/sessionManager.js` | `MAX_EXTRA_SESSIONS` 5 → 50 (env-tunable, hard max 50); `tg:` notify routing; Telegram mirror of lifecycle alerts; resume stagger (1.5s/socket); `activeSessionSockets()` export |
 | `src/telegram/bridge.js` | NEW — dependency-free seam between core and Telegram (`tg:<chat_id>` pseudo-JID scheme) |
 | `src/telegram/index.js` | NEW — the Telegram bot: pairing, approvals, fleet commands |
-| `server.js` | Boots the Telegram panel after extra-session resume |
+| `server.js` | Boots the Telegram panel after extra-session resume; mounts the web pairing router + homepage button |
+| `src/web/pairWeb.js` | NEW — free self-service pairing page at `/pair` (free + request modes, own rate limits) |
 | `package.json` | `node-telegram-bot-api` dep; name `nexora-md-telegram` |
 | `.env.example` | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_OWNER_ID`, `TELEGRAM_ADMIN_IDS`, `MAX_EXTRA_SESSIONS` |
 
@@ -67,3 +68,20 @@ Each live session is a full Baileys socket: ~40-70MB RAM typical. Budget
 **2-4 GB RAM** for a full 50-session fleet, and use a persistent volume so
 `session/extras/` survives restarts. Lower `MAX_EXTRA_SESSIONS` in env on
 small hosts — the cap is a memory decision, nothing else.
+
+## Web pairing page (`/pair`)
+
+A third surface over the same session engine, sharing the fleet cap and the
+approval queue:
+
+- **`WEB_PAIR_MODE=free`** (default): visitor enters a number → instant
+  pairing code on the page (never sent over WhatsApp/Telegram — the visitor
+  polls a UUID-bound status endpoint).
+- **`WEB_PAIR_MODE=request`**: files into the SAME approval queue as
+  Telegram `/pair` fallback and WhatsApp `.pair` — admins get the request
+  (super-owner DM + Telegram mirror) and approve with `.pairapprove` /
+  `/pairapprove`; once approved the code appears on the visitor's page.
+  The request's `dmJid` is a `web:<token>` pseudo-JID, same pattern as `tg:`.
+- One request filed from any surface can be approved from any other.
+- Rate limits: 3 starts / IP / 10 min, 150 status polls / IP / 10 min.
+- `WEB_PAIR_ENABLED=false` takes the page offline instantly.
