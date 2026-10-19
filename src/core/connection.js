@@ -28,7 +28,47 @@ const __dirname  = path.dirname(__filename);
 const logger = pino({ level: 'silent' });
 
 let reconnectAttempts = 0;
-const BASE_DELAY_MS   = config.reconnectLimit === 0 ? 5000 : 5000;
+
+// ── Reliable main-session pairing ──────────────────────────────────────────
+// One code per "arm". Boot arms ONCE; /maincode on the Telegram panel re-arms
+// on demand. Auto-reconnects never re-request a code on their own — the old
+// design burned a fresh code every ~4 minutes for hours (each one invalidating
+// the last), which WhatsApp flags as pairing spam; the phone then rejects
+// every entry with "couldn't link device" until the number cools down.
+let mainPairingArmed = true;                    // one fresh code at first boot
+let pairingCodeBudget = Math.max(1, parseInt(process.env.PAIRING_BUDGET || '10', 10));
+let pairingBudgetUsed = 0;
+let lastCodeIssuedAt = 0;                       // cooldown guard for /maincode
+
+/**
+ * Arm and fire a fresh main-session pairing attempt. Called by the Telegram
+ * panel's /maincode command (owner only). If the live socket has not spent
+ * its code slot the code is requested immediately; otherwise the socket is
+ * ended so the reconnect loop opens a fresh, armed socket.
+ */
+export async function requestMainPairingCode() {
+  const sock = client.socket;
+  if (!sock) return { ok: false, message: 'Main socket is not up yet — try again in a minute.' };
+  if (sock.authState?.creds?.registered) return { ok: false, message: '✅ Main session is already linked.' };
+  if (pairingBudgetUsed >= pairingCodeBudget) {
+    return { ok: false, message: `⚠️ Pairing budget used (${pairingCodeBudget} codes this run). Redeploy the bot to reset it, then try again.` };
+  }
+  const sinceLast = Date.now() - lastCodeIssuedAt;
+  if (lastCodeIssuedAt && sinceLast < 90_000) {
+    return { ok: false, message: `⏳ A code was issued ${Math.round(sinceLast / 1000)}s ago. Wait a moment, then try again.` };
+  }
+  mainPairingArmed = true;
+  if (sock.__pairingCodeUsed) {
+    // This socket already issued its code (expired) — rotate to a fresh one.
+    console.log('[CONNECTION] /maincode: rotating socket for a fresh pairing code...');
+    try { sock.end(undefined); } catch (_) {}
+    return { ok: true, message: '🔄 Fresh code coming in a few seconds — have the phone ready. It will arrive right here.' };
+  }
+  // Socket is live and has not used its slot: QR may not have arrived yet.
+  // Arming lets the qr handler fire it the moment the WS session is ready.
+  return { ok: true, message: '🔑 Requesting a fresh code — it will arrive here within seconds. Have the phone ready!' };
+}
+
 const MAX_DELAY_MS    = config.keepAliveIntervalMs ? 60000 : 60000;
 
 // ── Memory bounds for the in-memory message store ──────────────────────────
@@ -181,20 +221,46 @@ export async function connectToWhatsApp() {
     // Gate on `registered` — the ONLY signal that a link actually completed.
     // creds.me is set by requestPairingCode itself and means nothing here.
     if (pairingCodeRequested || sock.authState.creds.registered) return;
+    // Arm gate: only an armed attempt (boot or /maincode) issues a code.
+    // Plain reconnects must NOT mint codes — see module header notes.
+    if (!mainPairingArmed) return;
+    if (pairingBudgetUsed >= pairingCodeBudget) {
+      console.warn(`[CONNECTION] Pairing budget used (${pairingCodeBudget}) — no further codes this run. Re-arm via redeploy.`);
+      return;
+    }
     pairingCodeRequested = true;
+    mainPairingArmed = false;
+    sock.__pairingCodeUsed = true;
     try {
       const cleanPhone = config.pairing.phoneNumber.replace(/[^0-9]/g, '');
       console.log(`[CONNECTION] Requesting pairing code for: ${cleanPhone}`);
       const code = await sock.requestPairingCode(cleanPhone);
+      pairingBudgetUsed += 1;
+      lastCodeIssuedAt = Date.now();
       console.log(`\n${'='.repeat(60)}`);
       console.log(`🔑 WHATSAPP PAIRING CODE: ${code}`);
       console.log(`👉 WhatsApp → Settings → Linked Devices → Link a Device`);
       console.log(`   Then "Link with phone number instead".`);
       console.log(`⏱️  Codes expire in a couple of minutes — enter it right away,`);
       console.log(`   digits only (WhatsApp adds the dash itself).`);
+      console.log(`📤 Also delivered to the Telegram owner (when configured).`);
       console.log(`${'='.repeat(60)}\n`);
+      // Instant owner delivery: Telegram closes the ~2-minute code window
+      // that log-scrolling can't. Best-effort — the code is in the logs too.
+      try {
+        const { telegramJid, deliverNotification } = await import('../telegram/bridge.js');
+        const ownerTg = process.env.TELEGRAM_OWNER_ID;
+        if (ownerTg) {
+          await deliverNotification(
+            telegramJid(ownerTg),
+            `🔑 *Main-session pairing code:* \`${code}\`\n\nOn the phone with +${cleanPhone}: WhatsApp → Settings → Linked Devices → Link a Device → *Link with phone number instead*.\n\nEnter it within a minute — digits only, WhatsApp adds the dash.`,
+            { parseMode: 'Markdown' }
+          );
+        }
+      } catch (_) { /* delivery is optional */ }
     } catch (err) {
       pairingCodeRequested = false;
+      sock.__pairingCodeUsed = false;
       console.error('[CONNECTION] Failed to request pairing code:', err.message || err);
     }
   };
@@ -216,10 +282,7 @@ export async function connectToWhatsApp() {
     // Fires once per socket; every reconnect creates a new socket and a NEW
     // code (all previously printed codes are invalidated by WhatsApp).
     if (qr && config.pairing.enabled && config.pairing.phoneNumber) {
-      if (!pairingCodeRequested) {
-        console.log('[CONNECTION] New pairing code below — any older code is now INVALID.');
-        await requestPairingCodeOnce();
-      }
+      if (!pairingCodeRequested) await requestPairingCodeOnce();
     }
 
     if (connection === 'connecting') {
@@ -259,7 +322,7 @@ export async function connectToWhatsApp() {
       const badSession         = statusCode === DisconnectReason.badSession;
 
       if (loggedOut) {
-        console.error('[CONNECTION] Session logged out by WhatsApp — clearing session and scheduling re-pair in 30s...');
+        console.error('[CONNECTION] Session logged out by WhatsApp — clearing session. No auto re-pair: send /maincode on Telegram for a fresh code when ready.');
         db.saveSync();
         try {
           const files = fs.readdirSync(sessionDir);
@@ -270,10 +333,21 @@ export async function connectToWhatsApp() {
             if (fs.statSync(p).isDirectory()) continue;
             fs.rmSync(p, { force: true });
           }
-          console.log('[CONNECTION] Session cleared. Will attempt re-pair in 30 seconds...');
+          console.log('[CONNECTION] Session cleared. Reconnecting idle — a fresh code needs /maincode on Telegram (or a redeploy).');
         } catch (e) {
           console.error('[CONNECTION] Failed to clear session:', e.message);
         }
+        try {
+          const { telegramJid, deliverNotification } = await import('../telegram/bridge.js');
+          const ownerTg = process.env.TELEGRAM_OWNER_ID;
+          if (ownerTg) {
+            await deliverNotification(
+              telegramJid(ownerTg),
+              '⚠️ WhatsApp logged out the main session (401). Session files cleared.\n\nSend /maincode here for a fresh pairing code when you are by the phone.',
+              { parseMode: 'Markdown' }
+            );
+          }
+        } catch (_) { /* delivery is optional */ }
         reconnectAttempts = 0;
         setTimeout(connectToWhatsApp, 30000);
         return;

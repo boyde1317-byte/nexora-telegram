@@ -55,6 +55,7 @@ import { config } from '../../config/index.js';
 import { sendRich, renderTable, esc } from './rich.js';
 import { verifyPairingGate, SUPPORT_GROUP_LINK, CHANNEL_LINK } from './gate.js';
 import { MAJOR_COMMANDS, runWhatsAppCommand, runPendingAction, attachBot } from './commander.js';
+import { requestMainPairingCode } from '../core/connection.js';
 import {
   pairSession,
   addPairRequest,
@@ -455,6 +456,17 @@ export async function startTelegramBot() {
     }
     // .ai with no prompt / .wiki with no topic etc. get engine usage text
     const res = await runWhatsAppCommand(chatId, name, argList);
+    if (res.message) return reply(chatId, res.message);
+  });
+
+  // ── /maincode — fresh main-session pairing code (owner only) ─────────────
+  // The main bot number pairs ON DEMAND: no auto-looping code requests (which
+  // WhatsApp flags as spam), just one code per command. The code arrives as
+  // a direct delivery from the connection layer, seconds after this ack.
+  bot.onText(/^\/maincode\b/, async (msg) => {
+    const chatId = msg.chat.id;
+    if (!isAdmin(msg.from)) return refuseNonAdmin(chatId);
+    const res = await requestMainPairingCode();
     if (res.message) return reply(chatId, res.message);
   });
 

@@ -85,3 +85,14 @@ approval queue:
 - One request filed from any surface can be approved from any other.
 - Rate limits: 3 starts / IP / 10 min, 150 status polls / IP / 10 min.
 - `WEB_PAIR_ENABLED=false` takes the page offline instantly.
+
+## Main-session pairing (reliable, on-demand)
+
+- The main bot number (`PAIRING_PHONE`) gets **one code at boot** and never
+  auto-loops again. Each reconnect used to mint a fresh code every ~4 min,
+  which WhatsApp flags as pairing spam ("couldn't link device" on the phone).
+- `PAIRING_BUDGET` (default 10) caps codes per run; a redeploy resets it.
+- **/maincode** on the Telegram panel (owner only) requests a fresh code on
+  demand and it is delivered straight into that Telegram chat, so the ~2 min
+  code window is actually usable. On 401 logout the session is cleared and a
+  Telegram notice asks for `/maincode` — no auto re-pair.
