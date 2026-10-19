@@ -4,13 +4,14 @@
  * Improvements:
  *  - DownloadProgress feedback (was silent for 5-15s)
  *  - Error handling with user-friendly message
- *  - Author + duration metadata in caption
- *  - Rich tier: native reel player + stats card (falls back to classic video)
+ *  - Rich tier: native reel player + stats table (testrich "reelstats"
+ *    pattern — device-verified via .testrich). Falls back to the classic
+ *    playable video message when the rich card can't be sent.
  */
-import { withReactionStatus} from '../../lib/cosmetics.js';
-
-import { tiktokDownload, isUrl} from '../../lib/downloader.js';
-import { DownloadProgress} from '../../lib/progress.js';
+import { withReactionStatus } from '../../lib/cosmetics.js';
+import { tiktokDownload, isUrl } from '../../lib/downloader.js';
+import { DownloadProgress } from '../../lib/progress.js';
+import { sendReelWithStatsCard } from '../../lib/richContent.js';
 import { richTableCard } from '../../lib/interactiveKit.js';
 
 export default {
@@ -19,6 +20,7 @@ export default {
   category: 'download',
   description: 'Downloads a TikTok video without the watermark. Usage: .tiktok <url>',
   cooldown: 8000,
+
   execute: async ({ m, sock, args, prefix }) => {
     const p   = prefix || '.';
     const url = args[0]?.trim();
@@ -36,34 +38,46 @@ export default {
         const data = await tiktokDownload(url);
         await progress.done('✅ Got it! Sending video...');
 
+        const rows = [
+          ['Author',  (data.author || 'Unknown').slice(0, 40)],
+          ['Quality', 'HD • No watermark'],
+          ['Audio',   data.audio ? 'Available (MP3)' : '—'],
+          ['Source',  'TikTok'],
+        ];
+
+        // ── Rich tier: 🎬 Reel + Stats Table (.testrich reelstats) ──
+        // Native reel player with the stats table beneath it, one card.
+        // Replaces the old two-message video + richTableCard combo.
+        const sent = await sendReelWithStatsCard(sock, m.from, m, {
+          reel: {
+            title:        (data.title || 'TikTok Video').slice(0, 60),
+            thumbnailUrl: data.thumbnail,
+            videoUrl:     data.video,
+          },
+          tableHeaders: ['Metric', 'Value'],
+          tableRows: rows,
+          headerText: '🎬 TikTok Downloader',
+          footer: '© NEXORA-MD by Moonson',
+        });
+        if (sent) return;
+
+        // ── Fallback: classic playable video attachment ─────────────────
+        // The video is the actual deliverable — never leave the user with
+        // a table and no playable file.
         const meta = [
-          data.title    ? `🎬 *${data.title}*`           : '🎬 TikTok Video',
-          data.author   ? `👤 ${data.author}`             : null,
+          data.title  ? `🎬 *${data.title}*` : '🎬 TikTok Video',
+          data.author ? `👤 ${data.author}` : null,
         ].filter(Boolean).join('\n');
 
-        // The video is the actual deliverable — always send it as a real
-        // playable attachment. The old "reel" primitive (Baileys'
-        // generateReelWithStatsV2) puts the video behind a raw external
-        // video_url inside an unproven GenAI reel_item block, which is a
-        // Meta-AI-account content type, not a normal media message — on
-        // device it rendered nothing at all for that section, just the
-        // stats table below it, so the user got a table with no video.
         await sock.sendMessage(m.from, {
           video: { url: data.video },
           caption: `${meta}\n_No watermark_`,
         }, { quoted: m });
 
-        // Stats card is a bonus follow-up, never a replacement — uses the
-        // device-proven richTableCard (same primitive as .warns/.backup),
-        // not the unproven reel block.
         await richTableCard(sock, m.from, {
           title: data.title || 'TikTok Video',
           headers: ['Metric', 'Value'],
-          rows: [
-            ['Author', (data.author || 'Unknown').slice(0, 40)],
-            ['Quality', 'No watermark'],
-            ['Source', 'TikTok'],
-          ],
+          rows,
           footer: '© NEXORA-MD by Moonson',
         });
       } catch (err) {

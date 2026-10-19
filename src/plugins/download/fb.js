@@ -1,16 +1,16 @@
 /**
  * fb.js — .fb <url> — Facebook video download.
  *
- * Rich tier (device-audited Moonson msfb replica): AIRich inline video
- * (addVideo, taps play natively in the reply) + description text +
- * tip, footer-branded. Fallback: classic video message with caption.
+ * Rich tier: 🎬 Reel + Stats Table (.testrich "reelstats" pattern —
+ * device-verified). Native reel player with a stats table beneath it in
+ * one card. Falls back to the classic playable video message when the
+ * rich card can't be sent.
  */
 
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { facebookDownload, isUrl } from '../../lib/downloader.js';
 import { DownloadProgress } from '../../lib/progress.js';
-import { AIRich } from '../../lib/NIXCODE.js';
-import capabilities from '../../core/capabilities.js';
+import { sendReelWithStatsCard } from '../../lib/richContent.js';
 
 export default {
   name: 'fb',
@@ -39,24 +39,26 @@ export default {
         const quality = data.hd ? 'HD' : 'SD';
         await progress.done(`✅ Got it! Sending ${quality} video...`);
 
-        // ── Rich tier: Moonson msfb replica (inline video card) ──
-        if (capabilities.richResponse && best) {
-          try {
-            await new AIRich(sock)
-              .addVideo(`${best}|5`)
-              .addText(
-                '📝 **Description:**\nFacebook Video (' + quality + ')\n\n' +
-                  '🔗 **Link:** ' + best
-              )
-              .addTip('_Tap the video to play_')
-              .setFooter('© NEXORA-MD by Moonson')
-              .send(m.from, { quoted: m });
-            return;
-          } catch (err) {
-            console.warn('[fb] rich tier failed, sending classic:', err.message);
-          }
-        }
+        const formats = [data.hd && 'HD', data.sd && 'SD'].filter(Boolean).join(' + ');
 
+        // ── Rich tier: 🎬 Reel + Stats Table (.testrich reelstats) ──
+        const sent = await sendReelWithStatsCard(sock, m.from, m, {
+          reel: {
+            title:    `Facebook Video (${quality})`,
+            videoUrl: best,
+          },
+          tableHeaders: ['Metric', 'Value'],
+          tableRows: [
+            ['Quality', quality === 'HD' ? 'HD' : 'SD'],
+            ['Formats', formats || quality],
+            ['Source',  'Facebook'],
+          ],
+          headerText: '🎬 Facebook Downloader',
+          footer: '© NEXORA-MD by Moonson',
+        });
+        if (sent) return;
+
+        // ── Fallback: classic playable video attachment ─────────────────
         await sock.sendMessage(m.from, {
           video: { url: best },
           caption: `🎬 *Facebook Video* (${quality})`,
