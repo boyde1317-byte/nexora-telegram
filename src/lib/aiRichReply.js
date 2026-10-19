@@ -12,9 +12,9 @@
  *   footer/meta        → addTip
  *   follow-up pills    → addSuggest
  *
- * EXCLUSIONS (per 2026-09-13 device audit — user decision):
- *   - LaTeX stays OUT of production: every addText call passes
- *     `latex: false`. $...$ math ships as literal text.
+ * LaTeX (re-enabled): $...$ math paints via codecogs markers, and
+ * ```latex fenced blocks now ship as TYPESET image cards
+ * (sendLatexCard — .testrich v2lateximg anatomy) instead of raw code.
  *   - Maps stay OUT: addLocation is never called here.
  *   Both remain available only through the .testrich owner kit as
  *   experimental caption-only types.
@@ -25,6 +25,7 @@
  */
 import { AIRich } from './NIXCODE.js';
 import capabilities from '../core/capabilities.js';
+import { sendLatexCard } from './richContent.js';
 
 const MAX_TABLE_ROWS = 12;   // keep tables readable on device
 const MAX_TEXT_BLOCK = 3500; // per-submessage safety cap
@@ -136,32 +137,63 @@ export async function sendAIRichReply(sock, jid, quoted, { markdown, tips = [], 
     if (!blocks.length) return false;
 
     const rich = new AIRich(sock);
-    let textCount = 0;
+    let textCount = 0, codeCount = 0, tableCount = 0;
+    const latexBlocks = [];
     for (const b of blocks) {
       if (b.type === 'text') {
         rich.addText(toNixLatex(b.text.slice(0, MAX_TEXT_BLOCK)), { latex: true }); // latex: LIVE since r6 (owner go-live 2026-09-14)
         textCount++;
       } else if (b.type === 'code') {
-        rich.addCode(b.language, b.code);
+        // LaTeX source ships TYPESET, not raw: ```latex blocks are rendered
+        // as image cards right after the text envelope (.testrich
+        // v2lateximg anatomy). Non-math envs (tabular) fall back to
+        // codecogs inside sendLatexCard; long blocks stay as code.
+        const lang = (b.language || '').toLowerCase();
+        if ((lang === 'latex' || lang === 'tex') && b.code.trim().length <= 1600) {
+          latexBlocks.push(b.code.trim());
+        } else {
+          rich.addCode(b.language, b.code);
+          codeCount++;
+        }
       } else if (b.type === 'table') {
         rich.addTable(b.rows);
+        tableCount++;
       }
     }
 
-    // AIRich requires at least one text submessage to anchor the envelope —
-    // pure-code replies get a one-line lead-in.
-    if (textCount === 0) {
-      rich.addText('Here is the code:', { latex: false });
+    const envelopeHasContent = textCount > 0 || codeCount > 0 || tableCount > 0;
+    if (envelopeHasContent) {
+      // AIRich requires at least one text submessage to anchor the
+      // envelope — pure-code replies get a one-line lead-in.
+      if (textCount === 0) {
+        rich.addText('Here is the code:', { latex: false });
+      }
+
+      for (const tip of [].concat(tips)) {
+        if (tip) rich.addTip(tip);
+      }
+      if (footer) rich.setFooter(footer);
+      if (suggest.length) rich.addSuggest(suggest);
+
+      await rich.send(jid, { quoted });
     }
 
-    for (const tip of [].concat(tips)) {
-      if (tip) rich.addTip(tip);
+    // Typeset LaTeX blocks — image cards sent right after the envelope.
+    let delivered = envelopeHasContent;
+    for (const tex of latexBlocks) {
+      const ok = await sendLatexCard(sock, jid, quoted, {
+        text: '📐 Typeset LaTeX:',
+        expressions: [tex],
+        headerText: 'LaTeX',
+        footer,
+      });
+      if (!ok) {
+        // last resort: the raw source, monospaced
+        await sock.sendMessage(jid, { text: '```latex\n' + tex + '\n```' }, { quoted });
+      }
+      delivered = true;
     }
-    if (footer) rich.setFooter(footer);
-    if (suggest.length) rich.addSuggest(suggest);
-
-    await rich.send(jid, { quoted });
-    return true;
+    return delivered;
   } catch (err) {
     console.warn('[aiRichReply] rich send failed, falling back:', err.message);
     return false;

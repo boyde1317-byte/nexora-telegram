@@ -22,6 +22,8 @@ import {
   generateReelWithStatsV2,
   generateLinkContent,
   generateListContent,
+  generateLatexContentV2,
+  generateLatexImageContentV2,
 } from 'baileys';
 import capabilities from '../core/capabilities.js';
 import { relayGenerated } from './richMap.js';
@@ -104,6 +106,8 @@ export async function sendGifCard(sock, jid, quoted, { gifUrl, headerText, foote
 export async function sendReelWithStatsCard(sock, jid, quoted, { reel, tableHeaders, tableRows, headerText, footer }) {
   if (!capabilities.richResponse || !reel?.videoUrl) return false;
   try {
+    // Ship the video OFF TikTok's CDN first — see rehostReelVideo.
+    const videoUrl = await rehostReelVideo(sock, reel.videoUrl);
     const generated = await generateReelWithStatsV2(
       {
         reels: [
@@ -111,7 +115,7 @@ export async function sendReelWithStatsCard(sock, jid, quoted, { reel, tableHead
             title: String(reel.title || 'Video').slice(0, 60),
             profileIconUrl: reel.profileIconUrl || reel.thumbnailUrl,
             thumbnailUrl: reel.thumbnailUrl,
-            videoUrl: reel.videoUrl,
+            videoUrl,
           },
         ],
         tableHeaders: tableHeaders || ['Metric', 'Value'],
@@ -170,6 +174,104 @@ export async function sendListCard(sock, jid, quoted, { title, rows, headerText,
     return await _try(sock, jid, generated);
   } catch (err) {
     console.warn('[richContent] list card failed:', err.message);
+    return false;
+  }
+}
+
+// ── LaTeX ────────────────────────────────────────────────────────────────────
+// codecogs runs REAL LaTeX (incl. \begin{tabular}) — the local mathjax
+// renderer cannot parse text environments, so codecogs is the fallback.
+const _codecogsUrl = (expr) =>
+  'https://latex.codecogs.com/png.image?\\dpi{150}%20' + encodeURIComponent(expr);
+
+// Fetch a codecogs PNG once to read its true pixel size (PNG IHDR) so the
+// GenAILatexItem entity paints it undistorted — tabulars render much wider
+// and taller than formulas, and a fixed 320x60 squashes them.
+async function _codecogsDims(url) {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length < 24 || buf.slice(12, 16).toString('hex') !== '49484452') return null;
+    const w = buf.readUInt32BE(16), h = buf.readUInt32BE(20);
+    const scale = w > 640 ? 640 / w : 1;
+    return { width: Math.round(w * scale), height: Math.round(h * scale) };
+  } catch (_) { return null; }
+}
+
+/**
+ * Reel videos must point at WhatsApp's own media CDN: the on-device reel
+ * player streams video_url itself, and clients do NOT fetch media from
+ * arbitrary third-party hosts inside rich cards (device-verified — the
+ * same rule that forced image rehosting; see richMediaHoist.js). Meta's
+ * real reels point at WA media, so we upload the video bytes there first.
+ * @returns the (possibly rehosted) URL — never throws.
+ */
+async function rehostReelVideo(sock, videoUrl) {
+  if (!videoUrl || !/^https?:\/\//.test(videoUrl)) return videoUrl;
+  if (/mmg\.whatsapp\.net|media\.whatsapp\.net/.test(videoUrl)) return videoUrl; // already WA CDN
+  const uploadFn = sock?.waUploadToServer;
+  if (!uploadFn) return videoUrl;
+  try {
+    const res = await fetch(videoUrl, { signal: AbortSignal.timeout(120000), redirect: 'follow' });
+    if (!res.ok) throw new Error('fetch ' + res.status);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (!buffer.length) throw new Error('empty body');
+    if (buffer.length > 80 * 1024 * 1024) throw new Error('too large to rehost');
+    const up = await uploadFn(buffer, { mimetype: 'video/mp4', filename: 'reel.mp4' });
+    const hosted = up?.mediaUrl || up?.url || (up?.directPath ? 'https://mmg.whatsapp.net' + up.directPath : null);
+    if (!hosted) throw new Error('upload returned no url');
+    console.log('[richContent] reel video rehosted to WhatsApp CDN (' + Math.round(buffer.length / 1024) + ' KB)');
+    return hosted;
+  } catch (e) {
+    console.warn('[richContent] reel video rehost failed, keeping original URL (' + (e?.message || e) + ')');
+    return videoUrl;
+  }
+}
+
+/**
+ * Typeset LaTeX card — expressions rendered as images on a native rich
+ * card (the .testrich v2lateximg anatomy). Backend order:
+ *   1. local mathjax-node + sharp renderer (pure math, in-process)
+ *   2. codecogs pre-rendered PNGs (full LaTeX incl. tabular)
+ * Returns true when a card went out; false otherwise (caller falls back).
+ */
+export async function sendLatexCard(sock, jid, quoted, { text, expressions, headerText, footer }) {
+  if (!capabilities.richResponse || !expressions?.length) return false;
+  const items = expressions.slice(0, 4).map((e) =>
+    typeof e === 'string' ? { latexExpression: e } : e);
+  try {
+    const uploadFn = sock?.waUploadToServer || sock?.uploadToServer;
+    if (uploadFn) {
+      try {
+        let renderFn;
+        try { renderFn = (await import('./latexRenderer.js')).default; } catch (_) { /* no local renderer (standalone build) */ }
+        const generated = await generateLatexImageContentV2(
+          quoted,
+          { text: text || 'Typeset LaTeX:', expressions: items, headerText, footer },
+          uploadFn,
+          renderFn
+        );
+        return await _try(sock, jid, generated);
+      } catch (err) {
+        // mathjax can't parse text environments (tabular etc.) — codecogs can
+        console.warn('[richContent] local latex render failed, codecogs fallback:', err.message);
+      }
+    }
+    const exprs = await Promise.all(items.map(async (it) => {
+      const tex = it.latexExpression || it.latex || '';
+      const url = _codecogsUrl(tex);
+      const dims = await _codecogsDims(url);
+      return { latexExpression: tex, url, width: dims?.width || 320, height: dims?.height || 60 };
+    }));
+    const generated = generateLatexContentV2(quoted, {
+      text: text || 'Typeset LaTeX:',
+      expressions: exprs,
+      headerText, footer,
+    });
+    return await _try(sock, jid, generated);
+  } catch (err) {
+    console.warn('[richContent] latex card failed:', err.message);
     return false;
   }
 }
