@@ -22,6 +22,7 @@
  * Opt out globally with RICH_MEDIA_HOIST=0 or REHOST_RICH_MEDIA=0.
  */
 
+import crypto from 'crypto';
 import sharp from 'sharp';
 
 const HOIST_ENABLED = process.env.RICH_MEDIA_HOIST !== '0';
@@ -259,7 +260,11 @@ async function rehostUrl(sock, url) {
     if (!buffer.length) throw new Error('empty body');
     const mime = (res.headers.get('content-type') || '').split(';')[0].trim();
     if (!/^image\//.test(mime)) throw new Error('not an image: ' + mime);
-    const up = await sock.waUploadToServer(buffer, { mimetype: mime, filename: 'rich.' + (mime.split('/')[1] || 'jpg') });
+    // Real waUploadToServer contract: { mediaType, fileEncSha256B64, timeoutMs }.
+    // The old { mimetype, filename } call threw 'reading replace' every time —
+    // image rehosting never actually worked. Plain bytes + own sha256 token.
+    const fileEncSha256B64 = crypto.createHash('sha256').update(buffer).digest('base64');
+    const up = await sock.waUploadToServer(buffer, { mediaType: 'image', fileEncSha256B64, timeoutMs: 10000 });
     const hosted = up?.mediaUrl || up?.url || (up?.directPath ? 'https://mmg.whatsapp.net' + up.directPath : null);
     if (!hosted) throw new Error('no upload url: ' + Object.keys(up || {}).join(','));
     return { url: hosted, mime };

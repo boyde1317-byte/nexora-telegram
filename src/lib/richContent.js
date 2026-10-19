@@ -25,6 +25,7 @@ import {
   generateLatexContentV2,
   generateLatexImageContentV2,
 } from 'baileys';
+import crypto from 'crypto';
 import capabilities from '../core/capabilities.js';
 import { relayGenerated } from './richMap.js';
 
@@ -218,7 +219,13 @@ async function rehostReelVideo(sock, videoUrl) {
     const buffer = Buffer.from(await res.arrayBuffer());
     if (!buffer.length) throw new Error('empty body');
     if (buffer.length > 80 * 1024 * 1024) throw new Error('too large to rehost');
-    const up = await uploadFn(buffer, { mimetype: 'video/mp4', filename: 'reel.mp4' });
+    // waUploadToServer's real contract: { mediaType, fileEncSha256B64, timeoutMs }
+    // (NOT mimetype/filename — that variant dies at .replace() and the card
+    // silently keeps the dying third-party URL). We upload PLAIN bytes with
+    // their own sha256 as the token — rich-card media URLs are fetched and
+    // played directly by the client (Meta's own GenAI media works the same).
+    const fileEncSha256B64 = crypto.createHash('sha256').update(buffer).digest('base64');
+    const up = await uploadFn(buffer, { mediaType: 'video', fileEncSha256B64, timeoutMs: 120000 });
     const hosted = up?.mediaUrl || up?.url || (up?.directPath ? 'https://mmg.whatsapp.net' + up.directPath : null);
     if (!hosted) throw new Error('upload returned no url');
     console.log('[richContent] reel video rehosted to WhatsApp CDN (' + Math.round(buffer.length / 1024) + ' KB)');

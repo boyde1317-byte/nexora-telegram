@@ -1047,7 +1047,10 @@ class AIRich extends BaseBuilder {
 			const mime = (res.headers.get('content-type') || '').split(';')[0] || AIRich.guessImageMime(sourceUrl);
 			if (!/^image\//.test(mime)) throw new Error('not an image: ' + mime);
 			const ext = (mime.split('/')[1] || 'jpg').replace(/[^a-z0-9]/g, '') || 'jpg';
-			const up = await client.waUploadToServer(buffer, { mimetype: mime, filename: 'imagine.' + ext });
+			// Real waUploadToServer contract (see richMediaHoist.js note) — the old
+			// { mimetype, filename } call threw 'reading replace' on every imagine.
+			const fileEncSha256B64 = crypto.createHash('sha256').update(buffer).digest('base64');
+			const up = await client.waUploadToServer(buffer, { mediaType: 'image', fileEncSha256B64, timeoutMs: 15000 });
 			const hostedUrl = up?.mediaUrl || up?.url || up?.directPath && ('https://mmg.whatsapp.net' + up.directPath);
 			if (!hostedUrl) throw new Error('no upload url in ' + Object.keys(up || {}).join(','));
 			primitive.media.url = hostedUrl;
