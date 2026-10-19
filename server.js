@@ -14,7 +14,7 @@ import { client } from './src/core/client.js';
 import { assetManager } from './src/assets/assetManager.js';
 import { db } from './src/database/db.js';
 import brand from './config/brand.js';
-import { pairRouter } from './src/web/pairWeb.js';
+import { pairRouter, SOCIALS } from './src/web/pairWeb.js';
 import { config, configValidation } from './config/index.js';
 
 const app = express();
@@ -170,6 +170,15 @@ app.get('/', (req, res) => {
           background-color:#25d366;color:#06130a;font-weight:700;
           border-radius:10px;text-decoration:none;font-size:0.95rem;
         ">📱 Pair your number — free</a>
+        <div style="margin-top:1.4rem;display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;">
+          ${SOCIALS.map(function (s) { return `
+          <a href="${s.url}" target="_blank" rel="noopener" style="
+            display:inline-flex;align-items:center;gap:.4rem;padding:.42rem .85rem;
+            background-color:#171d24;border:1px solid #2d3748;border-radius:999px;
+            color:#94a3b8;font-size:.78rem;font-weight:600;text-decoration:none;">
+            <span style="width:14px;height:14px;display:inline-flex;color:#25d366;">${s.svg}</span>${s.name}
+          </a>`; }).join('')}
+        </div>
         <p class="version">v${brand.version} • Node.js ${process.version}</p>
       </div>
     </body>
