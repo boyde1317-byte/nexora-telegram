@@ -69,6 +69,9 @@ export async function requestMainPairingCode() {
   return { ok: true, message: '🔑 Requesting a fresh code — it will arrive here within seconds. Have the phone ready!' };
 }
 
+// Restore the constant clobbered by the pairing patch (getReconnectDelay
+// threw ReferenceError on every disconnect — unhandled rejection).
+const BASE_DELAY_MS   = config.reconnectLimit === 0 ? 5000 : 5000;
 const MAX_DELAY_MS    = config.keepAliveIntervalMs ? 60000 : 60000;
 
 // ── Memory bounds for the in-memory message store ──────────────────────────
