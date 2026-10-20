@@ -1379,6 +1379,9 @@ export const RICH_TESTS = [
   { id: 'v1multiimg',   label: '🖼️ V1 Multi-Images',  fn: testV1MultiImages,      group: 'Combos V1' },
   { id: 'v1gridtable',  label: '🖼️ V1 Grid+Table',    fn: testV1GridWithTable,     group: 'Combos V1' },
   { id: 'v1dyntable',   label: '🎞️ V1 Dynamic+Table', fn: testV1DynamicWithTable,  group: 'Combos V1' },
+  // v0.3.18-r14 gems (galaxy_message + proto-native carousel)
+  { id: 'galaxy',   label: '🌌 Galaxy Flows Bar', fn: testGalaxyBar,      group: 'r14 Gems' },
+  { id: 'carousel', label: '🎠 Native Carousel',  fn: testNativeCarousel, group: 'r14 Gems' },
   { id: 'v2codetable',  label: '💻 V2 Code+Table',     fn: testV2CodeWithTable,     group: 'Combos V2' },
   { id: 'v2maptable',   label: '📍 V2 Map+Table',      fn: testV2MapWithTable,      group: 'Combos V2' },
   { id: 'v2textimg',    label: '🖼️ V2 Text+Image',    fn: testV2TextWithImage,     group: 'Combos V2' },
@@ -1409,4 +1412,52 @@ export async function runAllRichTests(sock, jid, quoted) {
     await new Promise(r => setTimeout(r, 500));
   }
   return results;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.3.18-r14 gems — galaxy_message Flows bar + proto-native carousel.
+// Unlike the generators above, these go through sock.sendMessage so the
+// fork's own generateWAMessageContent branches (nativeFlow / cards) are
+// exercised end-to-end — the same path baileysBridge uses in production.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function testGalaxyBar(sock, jid, quoted) {
+  await sock.sendMessage(jid, {
+    nativeFlow: [
+      { galaxyBar: { cta: '✨ NEXORA Flows Bar', flowId: '.x7' } },
+      { text: '📋 Copy this code', copy: 'NEXORA-R14' },
+      { text: '🌐 Open channel', url: 'https://whatsapp.com/channel/0029Vb8iYHC4inot4Tplxc3c' },
+    ],
+    text: '🌌 *Galaxy Flows Bar test*\n\nA WhatsApp-branded Flows bar, faked without a real flow. Tap it — nothing opens; it is pure UI theater.',
+    footer: 'NEXORA • v0.3.18-r14 gem (galaxy_message)',
+  }, { quoted });
+  return 'galaxy flows bar ✓';
+}
+
+export async function testNativeCarousel(sock, jid, quoted) {
+  await sock.sendMessage(jid, {
+    cards: [
+      {
+        image: { url: 'https://picsum.photos/seed/nexcar1/512/512' },
+        caption: 'Card 1 — image header + URL button.',
+        title: 'First',
+        nativeFlow: [{ text: '🌐 Visit NEXORA', url: 'https://example.com' }],
+      },
+      {
+        text: 'Card 2 — text card with the galaxy Flows bar and a copy button.',
+        title: 'Second',
+        nativeFlow: [
+          { galaxyBar: { cta: '✨ Flows bar on a card' } },
+          { text: '📋 Copy', copy: 'carousel-copy-test' },
+        ],
+      },
+      {
+        image: { url: 'https://picsum.photos/seed/nexcar3/512/512' },
+        caption: 'Card 3 — image header + quick reply.',
+        title: 'Third',
+        nativeFlow: [{ text: '👉 Ping the bot', id: '.ping' }],
+      },
+    ],
+    text: '🎠 *Native proto carousel* — swipeable cards, each with its own media header and buttons.',
+    footer: 'NEXORA • v0.3.18-r14 gem (carouselMessage)',
+  }, { quoted });
+  return 'native carousel ✓';
 }

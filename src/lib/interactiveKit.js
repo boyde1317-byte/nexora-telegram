@@ -42,6 +42,7 @@
  *   cta_delete_message { deleteMessage: { id } }
  *   target         { targetCta: { text } }
  *   custom (raw)  { name, paramsJson }     → pass-through to nativeFlow
+ *   galaxyBar    { cta, flowId?, version? } → galaxy_message: WhatsApp-branded Flows bar (faked, flow_id '.x7')
  *
  * Message-level overlays:
  *   bottom_sheet    optionText/optionTitle props → collapse all rows into a WA modal sheet
@@ -996,3 +997,49 @@ export default {
   amazonLinkCard,
   customButtonCard,
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 26. GALAXY FLOWS BAR — galaxy_message pseudo-Flows bar (v0.3.18-r14 gem)
+//     Renders WhatsApp's branded Flows CTA bar in chat without a real flow.
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * @param {object} sock
+ * @param {string} jid
+ * @param {{ text?: string, footer?: string, barText?: string, extraButtons?: Array<object> }} content
+ * @param {object} [sendOptions]
+ */
+export async function galaxyBarCard(sock, jid, { text, footer, barText, extraButtons = [] }, sendOptions = {}) {
+  if (capabilities.nativeFlow) {
+    return await baileysBridge.sendNativeFlow(sock, jid, {
+      text,
+      ...(footer ? { footer } : {}),
+      buttons: [
+        { galaxyBar: { cta: barText || '✨ Open Flows' } },
+        ...extraButtons,
+      ],
+    }, sendOptions);
+  }
+  return sock.sendMessage(jid, { text: `${text || ''}\n\n✨ _${barText || 'Flows bar unavailable on this client'}_` }, sendOptions);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 27. NATIVE CAROUSEL — proto carouselMessage, per-card media + buttons (r14 gem)
+// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Cards: { image|video: Buffer|{url}, caption?, text?, title?, footer?, nativeFlow?: buttons }
+ * @param {object} sock
+ * @param {string} jid
+ * @param {{ cards: Array<object>, text?: string, footer?: string }} content
+ * @param {object} [sendOptions]
+ */
+export async function nativeCarouselCard(sock, jid, { cards, text, footer }, sendOptions = {}) {
+  if (capabilities.nativeFlow) {
+    return await baileysBridge.sendCarousel(sock, jid, {
+      cards,
+      ...(text ? { text } : {}),
+      ...(footer ? { footer } : {}),
+    }, sendOptions);
+  }
+  const body = cards.map(c => `*├ ${c.title || 'Card'}*\n│ ${c.caption || c.text || ''}`).join('\n\n');
+  return sock.sendMessage(jid, { text: `${text || ''}\n\n${body}` }, sendOptions);
+}
