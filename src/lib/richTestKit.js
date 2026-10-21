@@ -17,6 +17,7 @@ import {
 import { AIRich } from './NIXCODE.js';
 import { hoistAfterRelay, rehostRichCardMedia } from './richMediaHoist.js';
 import { baileysBridge } from '../core/baileysBridge.js';
+import { sendUnifiedRich, productItemCard, markdownText, extWidget, followUpPills, singleSection, hScrollSection } from './vipRichKit.js';
 
 // ── V1 + V2 generators (imported from the fork's rich-message-utils.js) ─────
 import {
@@ -1385,6 +1386,7 @@ export const RICH_TESTS = [
   { id: 'carousel', label: '🎠 Native Carousel',  fn: testNativeCarousel, group: 'r14 Gems' },
   { id: 'secret',   label: '🔒 Secret Flow Card', fn: testSecretFlow,      group: 'r14 Gems' },
   { id: 'dino',     label: '🦖 HTML Game: Dino',  fn: testHtmlGame('dino'),    group: 'r16 Gems' },
+  { id: 'vipcard',  label: '👑 VIP Rich Card',   fn: testVipRichCard,       group: 'r18 Gems' },
   { id: 'htmlcalc', label: '🧮 HTML Calc',        fn: testHtmlGame('calc'),    group: 'r16 Gems' },
   { id: 'monitor',  label: '📡 HTML Server Monitor', fn: testHtmlGame('monitor'), group: 'r16 Gems' },
   { id: 'v2codetable',  label: '💻 V2 Code+Table',     fn: testV2CodeWithTable,     group: 'Combos V2' },
@@ -1503,4 +1505,46 @@ export function testHtmlGame(game) {
     if (!result.ok) throw new Error(result.reason);
     return `html game "${result.game}" ✓`;
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.3.18-r18 gem — Lady-Trish/Omegatech VIP rich card: full unified-response
+// envelope (messageSecret + forwardedAiBotMessageInfo) with 3PExt widget CTAs.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function testVipRichCard(sock, jid, quoted) {
+  await sendUnifiedRich(sock, jid, {
+    disclaimer: 'VIP Rich Card',
+    submessages: [{ messageType: 2, messageText: '👑 NEXORA VIP Rich Card' }],
+    sections: [
+      singleSection(productItemCard({
+        title: '👑 VIP Rich Card!',
+        brand: 'NEXORA',
+        price: '✅ Success',
+        productUrl: 'https://wa.me/233533416608',
+        imageUrl: 'https://res.cloudinary.com/di2a9lenz/image/upload/v1786909227/omegatech_ai_media/upload-1786909226872.jpg',
+      })),
+      singleSection(markdownText(
+        '✅ *Unified Response Envelope Test*\n\n📡 *Layout:* 4 sections (single + hscroll)\n🧩 *Primitives:* product card, markdown, 3PExt widget, pills\n🔐 *Secret:* injected · 🤖 *BotJid:* @bot · 🏷️ *ForwardOrigin:* 4\n\n📌 *Note:* CTA taps show a toast (toast-only theater by design).'
+      )),
+      hScrollSection([
+        extWidget({
+          title: '⚡ NEXORA VIP',
+          ctas: [
+            { label: 'React Again', toast: 'Send Another Reaction', toolCallId: '00' },
+            { label: 'Menu', toast: 'Show Menu', toolCallId: '01' },
+            { label: 'Channel', toast: 'Join Channel', toolCallId: '02' },
+          ],
+        }),
+        ...followUpPills(['N', 'E', 'X', 'O', 'R', 'A']),
+        markdownText('N\nE\nX\nO\nR\nA'),
+        productItemCard({ title: 'NEXORA Bot', brand: 'NEXORA', price: 'r18', salePrice: 'Free' }),
+      ]),
+      singleSection(markdownText(
+        '📢 *Join Our Channel:*\nhttps://whatsapp.com/channel/0029Vb8iYHC4inot4Tplxc3c',
+        [{ url: 'https://whatsapp.com/channel/0029Vb8iYHC4inot4Tplxc3c', title: 'NEXORA Channel', displayName: '📢 Join Channel' }]
+      )),
+    ],
+    quoted,
+  });
+  return 'vip rich card ✓ (r18 envelope)';
 }

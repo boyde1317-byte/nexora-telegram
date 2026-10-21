@@ -135,6 +135,7 @@ export async function sendHtmlGame(sock, jid, { game, quoted }) {
   const certificateChain = loadCertificateChain();
   const content = {
     messageContextInfo: {
+      messageSecret: crypto.randomBytes(32), // r18: required for client render (Omegatech parity)
       deviceListMetadata: {},
       deviceListMetadataVersion: 2,
       botMetadata: {
