@@ -1387,7 +1387,6 @@ export const RICH_TESTS = [
   { id: 'dino',     label: '🦖 HTML Game: Dino',  fn: testHtmlGame('dino'),    group: 'r16 Gems' },
   { id: 'htmlcalc', label: '🧮 HTML Calc',        fn: testHtmlGame('calc'),    group: 'r16 Gems' },
   { id: 'monitor',  label: '📡 HTML Server Monitor', fn: testHtmlGame('monitor'), group: 'r16 Gems' },
-
   { id: 'v2codetable',  label: '💻 V2 Code+Table',     fn: testV2CodeWithTable,     group: 'Combos V2' },
   { id: 'v2maptable',   label: '📍 V2 Map+Table',      fn: testV2MapWithTable,      group: 'Combos V2' },
   { id: 'v2textimg',    label: '🖼️ V2 Text+Image',    fn: testV2TextWithImage,     group: 'Combos V2' },
@@ -1419,6 +1418,7 @@ export async function runAllRichTests(sock, jid, quoted) {
   }
   return results;
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // v0.3.18-r14 gems — galaxy_message Flows bar + proto-native carousel.
 // Unlike the generators above, these go through sock.sendMessage so the
@@ -1426,16 +1426,25 @@ export async function runAllRichTests(sock, jid, quoted) {
 // exercised end-to-end — the same path baileysBridge uses in production.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function testGalaxyBar(sock, jid, quoted) {
+  // r17 FIX: the bar does NOT render from a bare galaxy_message button —
+  // device-verified. The scene envelope (Paxley/Moongod, working in
+  // production) always ships: (1) messageParamsJson carrying a
+  // limited_time_offer + bottom_sheet (fork r17 auto-attaches this when a
+  // galaxyBar is present), and (2) two stub buttons before the bar —
+  // single_select + call_permission_request with has_multiple_buttons:true.
+  // This test replicates that envelope exactly.
   await sock.sendMessage(jid, {
     nativeFlow: [
-      { galaxyBar: { cta: '✨ NEXORA Flows Bar', flowId: '.x7' } },
-      { text: '📋 Copy this code', copy: 'NEXORA-R14' },
+      { name: 'single_select', paramsJson: JSON.stringify({ has_multiple_buttons: true }) },
+      { name: 'call_permission_request', paramsJson: JSON.stringify({ has_multiple_buttons: true }) },
+      { galaxyBar: { cta: '› # NEXORA Flows', flowId: '.x7' } },
+      { text: '📋 Copy this code', copy: 'NEXORA-R17' },
       { text: '🌐 Open channel', url: 'https://whatsapp.com/channel/0029Vb8iYHC4inot4Tplxc3c' },
     ],
-    text: '🌌 *Galaxy Flows Bar test*\n\nA WhatsApp-branded Flows bar, faked without a real flow. Tap it — nothing opens; it is pure UI theater.',
-    footer: 'NEXORA • v0.3.18-r14 gem (galaxy_message)',
+    text: '🌌 *Galaxy Flows Bar test (r17 envelope)*\n\nA WhatsApp-branded Flows bar, faked without a real flow. If this still renders flat, the missing piece is client-side version gating.',
+    footer: 'NEXORA • v0.3.18-r17 gem (galaxy_message + limited_time_offer)',
   }, { quoted });
-  return 'galaxy flows bar ✓';
+  return 'galaxy flows bar ✓ (r17 envelope)';
 }
 
 export async function testNativeCarousel(sock, jid, quoted) {
