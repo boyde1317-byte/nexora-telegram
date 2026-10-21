@@ -1,0 +1,37 @@
+{
+  "_comment": "Source-of-truth manifest for the vendored GenAIaeacdsnwHtmlPrimitive game payloads. These files are byte-faithful copies of their real sources (verified sha256). Run scripts/verify-htmlgames-sources.mjs to re-verify against the live sources. We vendor instead of hot-linking so a third-party repo can never swap the payloads the bot renders.",
+  "files": {
+    "chess.html": {
+      "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/chess.html",
+      "sha256": "ee7abfe2c004c3ab41e9cb9d2e6e5bea5f98cff3d39f369825694fd24f455224"
+    },
+    "dino.html": {
+      "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/dino.html",
+      "sha256": "7e01c9cef44af2c2ca48df8cc27e6f72648e01da0b13cd91cdc352d052b12ee5"
+    },
+    "mbim.html": {
+      "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/mbim.html",
+      "sha256": "bee69f57cbaa35b156126cb62d93b4973eba1634a574d253602890d9106b91af"
+    },
+    "plane.html": {
+      "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/plane.html",
+      "sha256": "cee99519bcbd04f4266ed1f843c7bcf00c6ad235518f5d90ae2e61d6891b2e28"
+    },
+    "ttc.html": {
+      "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/ttc.html",
+      "sha256": "97977b4139856c720cb4523188735f8bb214bd75594230ea43c85b8e2f6c62fe"
+    },
+    "calc.html": {
+      "source": "inline payload string in Moongod.js (case \"calc\") — no remote file; source of truth is the payload literal itself",
+      "sha256": "87c8abfea3dff3012bbe03606a77a4586e1f445b9af45d8545a4d4e8fdbfc9ae"
+    },
+    "monitor.html": {
+      "source": "https://raw.githubusercontent.com/noXxza/data/refs/heads/main/ping.html",
+      "sha256": "fb94e2a1fec40cb487b7ec18e06ff0940bffadcaabb555710d43a85fd927a850"
+    },
+    "certificate.json": {
+      "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/certificate.json",
+      "sha256": "abc1a6587c7a5079a8604a9d2f633ef30dbb560ad9999e6f0cc0d53b2488a078"
+    }
+  }
+}
