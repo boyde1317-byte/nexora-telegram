@@ -1,0 +1,462 @@
+<style>
+* { -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; box-sizing: border-box; margin: 0; padding: 0; }
+body { margin: 0; background: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #fff; touch-action: none; overflow: hidden; }
+.wrapper { width: 100%; max-width: 480px; margin: auto; padding: 12px; }
+.card { background: linear-gradient(180deg, rgba(15,18,26,0.97), rgba(10,12,18,0.97)); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 2px solid #f59e0b; border-radius: 20px; overflow: hidden; box-shadow: 0 14px 44px rgba(0,0,0,0.75), inset 0 0 40px rgba(245,158,11,0.06); padding: 14px; position: relative; }
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.title { font-size: 10px; letter-spacing: 1.5px; color: #f59e0b; font-weight: 800; text-transform: uppercase; display:flex; align-items:center; gap:6px; }
+.title .dot{ width:6px; height:6px; border-radius:50%; background:#10b981; box-shadow:0 0 8px #10b981; animation: pulse 1.4s infinite; }
+@keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:.3} }
+.score-badge { font-size: 20px; font-weight: 900; color: #10b981; text-shadow: 0 0 12px rgba(16,185,129,0.5); font-variant-numeric: tabular-nums; }
+.best-badge { font-size: 10px; color: #94a3b8; font-variant-numeric: tabular-nums; }
+.stat-row { display:flex; gap:8px; margin-bottom:8px; }
+.stat-pill { flex:1; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:5px 8px; text-align:center; }
+.stat-pill .lbl{ font-size:8px; letter-spacing:1px; color:#64748b; text-transform:uppercase; font-weight:700; }
+.stat-pill .val{ font-size:13px; font-weight:900; color:#fff; font-variant-numeric: tabular-nums; }
+#game-container { position: relative; width: 100%; height: 350px; border-radius: 14px; overflow: hidden; border: 2px solid #1e293b; box-shadow: inset 0 0 30px rgba(0,0,0,0.6); }
+canvas { width: 100%; height: 100%; display: block; background: #1a2332; }
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+.btn { padding: 14px; font-size: 15px; font-weight: 800; border: none; border-radius: 12px; cursor: pointer; color: #fff; text-align: center; letter-spacing: 0.5px; position: relative; overflow: hidden; }
+.btn-left { background: linear-gradient(135deg, #3b82f6, #2563eb); box-shadow: 0 4px 16px rgba(59,130,246,0.45), inset 0 1px 0 rgba(255,255,255,0.2); }
+.btn-right { background: linear-gradient(135deg, #ec4899, #db2777); box-shadow: 0 4px 16px rgba(236,72,153,0.45), inset 0 1px 0 rgba(255,255,255,0.2); }
+.btn:active { transform: scale(0.95); filter: brightness(0.9); }
+.credit-bar { margin-top: 10px; text-align: center; font-size: 10px; font-weight: 800; letter-spacing: 1.5px; color: #94a3b8; text-transform: uppercase; border-top: 1px dashed rgba(255,255,255,0.12); padding-top: 8px; }
+.credit-bar span { color: #f59e0b; text-shadow: 0 0 10px rgba(245,158,11,0.5); }
+</style>
+<body>
+<div class="wrapper">
+  <div class="card">
+    <div class="header">
+      <div>
+        <div class="title"><span class="dot"></span>KyouanTzy</div>
+        <h2 style="font-size: 17px; font-weight: 900; color: #fff; margin-top:2px;">Highway Rush 🏎️</h2>
+      </div>
+      <div style="text-align: right;">
+        <div class="score-badge" id="score">0000</div>
+        <div class="best-badge" id="best">BEST 0000</div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-pill"><div class="lbl">Speed</div><div class="val" id="speedStat">60</div></div>
+      <div class="stat-pill"><div class="lbl">Combo</div><div class="val" id="comboStat">x1</div></div>
+      <div class="stat-pill"><div class="lbl">Dodged</div><div class="val" id="dodgeStat">0</div></div>
+    </div>
+
+    <div id="game-container">
+      <canvas id="c"></canvas>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-left" id="leftBtn">⬅️ LEFT</button>
+      <button class="btn btn-right" id="rightBtn">RIGHT ➡️</button>
+    </div>
+
+    <div class="credit-bar">
+      Engineered by <span>KyouanTzy</span> ⚡
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var cvs = document.getElementById('c');
+  var ctx = cvs.getContext('2d');
+  var scoreEl = document.getElementById('score');
+  var bestEl = document.getElementById('best');
+  var speedStatEl = document.getElementById('speedStat');
+  var comboStatEl = document.getElementById('comboStat');
+  var dodgeStatEl = document.getElementById('dodgeStat');
+
+  var W = 360;
+  var H = 350;
+  cvs.width = W;
+  cvs.height = H;
+
+  var ROAD_L = 26, ROAD_R = W - 26;
+  var laneCount = 4;
+  var laneW = (ROAD_R - ROAD_L) / laneCount;
+  var lanes = [];
+  for (var li = 0; li < laneCount; li++) lanes.push(ROAD_L + laneW * (li + 0.5));
+
+  var currentLane = 1;
+  var targetX = lanes[currentLane];
+  var playerX = lanes[currentLane];
+  var playerY = H - 72;
+  var playerTilt = 0;
+
+  var baseSpeed = 5.2;
+  var speed = baseSpeed;
+  var roadOffset = 0;
+  var score = 0;
+  var best = 0;
+  var dodged = 0;
+  var combo = 1;
+  var comboTimer = 0;
+  var shake = 0;
+  var flashAlpha = 0;
+
+  try { best = parseInt(localStorage.getItem('car_best_v2') || '0', 10) || 0; } catch(e){}
+  bestEl.textContent = 'BEST ' + String(best).padStart(4, '0');
+
+  var traffic = [];
+  var coins = [];
+  var particles = [];
+  var skidmarks = [];
+  var clouds = [];
+  var trees = [];
+  var gameOver = false;
+  var frame = 0;
+
+  var CAR_PALETTES = [
+    { body: '#ef4444', dark: '#991b1b', light: '#fca5a5' },
+    { body: '#3b82f6', dark: '#1e3a8a', light: '#93c5fd' },
+    { body: '#10b981', dark: '#065f46', light: '#6ee7b7' },
+    { body: '#f59e0b', dark: '#92400e', light: '#fcd34d' },
+    { body: '#8b5cf6', dark: '#4c1d95', light: '#c4b5fd' },
+    { body: '#ec4899', dark: '#831843', light: '#f9a8d4' },
+    { body: '#e2e8f0', dark: '#64748b', light: '#ffffff' }
+  ];
+
+  for (var tc = 0; tc < 6; tc++) {
+    trees.push({ x: Math.random() * W, y: Math.random() * H, side: Math.random() < 0.5 ? 0 : 1, size: 10 + Math.random() * 8 });
+  }
+  for (var cc = 0; cc < 4; cc++) {
+    clouds.push({ x: Math.random() * W, y: 10 + Math.random() * 60, w: 40 + Math.random() * 40, spd: 0.2 + Math.random() * 0.3 });
+  }
+
+  function spawnTraffic() {
+    var occupied = {};
+    for (var i = 0; i < traffic.length; i++) {
+      if (traffic[i].y < 90) occupied[traffic[i].lane] = true;
+    }
+    var free = [];
+    for (var l = 0; l < laneCount; l++) if (!occupied[l]) free.push(l);
+    if (free.length === 0) return;
+    var laneIdx = free[Math.floor(Math.random() * free.length)];
+    var pal = CAR_PALETTES[Math.floor(Math.random() * (CAR_PALETTES.length - 1))];
+    var isTruck = Math.random() < 0.18;
+    traffic.push({
+      lane: laneIdx,
+      x: lanes[laneIdx],
+      y: -70,
+      w: isTruck ? 32 : 26,
+      h: isTruck ? 58 : 44,
+      pal: pal,
+      speed: 1.8 + Math.random() * 2.2,
+      truck: isTruck,
+      scored: false
+    });
+  }
+
+  function spawnCoin() {
+    var laneIdx = Math.floor(Math.random() * laneCount);
+    coins.push({ x: lanes[laneIdx], y: -30, r: 9, collected: false, spin: 0 });
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawCar(cx, cy, w, h, pal, isPlayer, tilt) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    if (tilt) ctx.rotate(tilt);
+    ctx.translate(-w / 2, -h / 2);
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(w / 2, h - 2, w * 0.6, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.fillStyle = '#0b0f17';
+    var wheelY = [7, h - 16];
+    for (var wi = 0; wi < 2; wi++) {
+      roundRect(-3, wheelY[wi], 4, 12, 2); ctx.fill();
+      roundRect(w - 1, wheelY[wi], 4, 12, 2); ctx.fill();
+    }
+
+    var grad = ctx.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, pal.dark);
+    grad.addColorStop(0.5, pal.body);
+    grad.addColorStop(1, pal.light);
+    ctx.fillStyle = grad;
+    roundRect(0, 0, w, h, 6);
+    ctx.fill();
+
+    var roofY = isPlayer ? 8 : 11;
+    var roofH = h * 0.33;
+    ctx.fillStyle = '#0b0f17';
+    roundRect(3, roofY, w - 6, roofH, 4);
+    ctx.fill();
+
+    ctx.fillStyle = '#93c5fd';
+    roundRect(5, roofY + 2, w - 10, roofH - 4, 3);
+    ctx.fill();
+
+    if (isPlayer) {
+      ctx.fillStyle = '#fff7c2';
+      ctx.fillRect(2, 1, 5, 3);
+      ctx.fillRect(w - 7, 1, 5, 3);
+    } else {
+      ctx.fillStyle = '#ff3b3b';
+      ctx.fillRect(2, h - 4, 5, 3);
+      ctx.fillRect(w - 7, h - 4, 5, 3);
+    }
+
+    ctx.restore();
+  }
+
+  function explode(x, y, color) {
+    for (var i = 0; i < 30; i++) {
+      var angle = Math.random() * Math.PI * 2;
+      var spd = 2 + Math.random() * 6;
+      particles.push({ x: x, y: y, vx: Math.cos(angle) * spd, vy: Math.sin(angle) * spd, color: color, life: 1, size: 2 + Math.random() * 3 });
+    }
+    shake = 10;
+    flashAlpha = 0.45;
+  }
+
+  var spawnCounter = 0;
+  var coinCounter = 0;
+
+  function drawBackground() {
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#0d7a4f';
+    ctx.fillRect(0, 0, ROAD_L, H);
+    ctx.fillRect(ROAD_R, 0, W - ROAD_R, H);
+
+    for (var ti = 0; ti < trees.length; ti++) {
+      var tr = trees[ti];
+      if (!gameOver) tr.y += speed * 0.9;
+      if (tr.y > H + 20) { tr.y = -20; tr.x = tr.side === 0 ? Math.random() * (ROAD_L - 8) + 2 : ROAD_R + Math.random() * (W - ROAD_R - 8) + 2; }
+      ctx.fillStyle = '#064e3b';
+      ctx.beginPath();
+      ctx.arc(tr.x, tr.y, tr.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#263143';
+    ctx.fillRect(ROAD_L, 0, ROAD_R - ROAD_L, H);
+
+    ctx.fillStyle = '#fde68a';
+    ctx.fillRect(ROAD_L, 0, 3, H);
+    ctx.fillRect(ROAD_R - 3, 0, 3, H);
+
+    if (!gameOver) roadOffset = (roadOffset + speed) % 44;
+    ctx.fillStyle = 'rgba(226,232,240,0.85)';
+    for (var l = 1; l < laneCount; l++) {
+      var lx = ROAD_L + laneW * l;
+      for (var y = -44 + roadOffset; y < H; y += 44) {
+        ctx.fillRect(lx - 2, y, 4, 22);
+      }
+    }
+  }
+
+  function update() {
+    frame++;
+    ctx.save();
+    if (shake > 0) {
+      var sx = (Math.random() - 0.5) * shake;
+      var sy = (Math.random() - 0.5) * shake;
+      ctx.translate(sx, sy);
+      shake *= 0.88;
+      if (shake < 0.5) shake = 0;
+    }
+
+    ctx.clearRect(-10, -10, W + 20, H + 20);
+    drawBackground();
+
+    if (!gameOver) {
+      score += 1 + Math.floor(combo / 2);
+      scoreEl.textContent = String(score).padStart(4, '0');
+      if (score > best) {
+        best = score;
+        try { localStorage.setItem('car_best_v2', String(best)); } catch(e){}
+        bestEl.textContent = 'BEST ' + String(best).padStart(4, '0');
+      }
+
+      speed = baseSpeed + Math.min(score / 450, 4.0);
+      speedStatEl.textContent = Math.round(speed * 18);
+      dodgeStatEl.textContent = dodged;
+      comboStatEl.textContent = 'x' + combo;
+
+      if (comboTimer > 0) {
+        comboTimer--;
+      } else if (combo > 1) {
+        combo = 1;
+      }
+
+      playerX += (targetX - playerX) * 0.25;
+      playerTilt = (targetX - playerX) * 0.004;
+
+      spawnCounter++;
+      var spawnGap = Math.max(24, 44 - Math.floor(score / 160));
+      if (spawnCounter > spawnGap) { spawnTraffic(); spawnCounter = 0; }
+
+      coinCounter++;
+      if (coinCounter > 65) { spawnCoin(); coinCounter = 0; }
+    }
+
+    for (var c = coins.length - 1; c >= 0; c--) {
+      var coin = coins[c];
+      if (!gameOver) { coin.y += speed; coin.spin += 0.15; }
+      var squash = Math.abs(Math.cos(coin.spin));
+      ctx.save();
+      ctx.translate(coin.x, coin.y);
+      ctx.scale(Math.max(0.2, squash), 1);
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.arc(0, 0, coin.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      var cdx = Math.abs(playerX - coin.x);
+      var cdy = Math.abs(playerY + 20 - coin.y);
+      if (cdx < 20 && cdy < 24 && !coin.collected && !gameOver) {
+        coin.collected = true;
+        score += 40 * combo;
+        combo = Math.min(combo + 1, 9);
+        comboTimer = 90;
+        explode(coin.x, coin.y, '#fbbf24');
+        coins.splice(c, 1);
+      } else if (coin.y > H + 20) {
+        coins.splice(c, 1);
+      }
+    }
+
+    for (var i = traffic.length - 1; i >= 0; i--) {
+      var t = traffic[i];
+      if (!gameOver) {
+        t.y += (speed - t.speed);
+        if (t.y - t.h / 2 > playerY + 10 && !t.scored) {
+          t.scored = true;
+          dodged++;
+        }
+      }
+      drawCar(t.x, t.y, t.w, t.h, t.pal, false, 0);
+
+      var dx = Math.abs(playerX - t.x);
+      var dy = Math.abs(playerY - t.y);
+      if (dx < (t.w + 22) / 2 - 4 && dy < (t.h + 40) / 2 - 6 && !gameOver) {
+        gameOver = true;
+        explode(playerX, playerY + 20, '#f59e0b');
+        explode(t.x, t.y + 20, t.pal.body);
+      }
+
+      if (t.y > H + 80) traffic.splice(i, 1);
+    }
+
+    if (!gameOver) {
+      drawCar(playerX, playerY, 26, 44, { body: '#f59e0b', dark: '#92400e', light: '#fde68a' }, true, playerTilt);
+    }
+
+    for (var p = particles.length - 1; p >= 0; p--) {
+      var pt = particles[p];
+      pt.x += pt.vx;
+      pt.y += pt.vy;
+      pt.life -= 0.04;
+      if (pt.life <= 0) { particles.splice(p, 1); continue; }
+      ctx.globalAlpha = Math.max(pt.life, 0);
+      ctx.fillStyle = pt.color;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.size || 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    if (flashAlpha > 0.01) {
+      ctx.fillStyle = 'rgba(255,255,255,' + flashAlpha + ')';
+      ctx.fillRect(0, 0, W, H);
+      flashAlpha *= 0.85;
+    }
+
+    if (gameOver) {
+      ctx.fillStyle = 'rgba(10, 12, 20, 0.85)';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '900 24px sans-serif';
+      ctx.fillText('CRASHED 💥', W / 2, H / 2 - 25);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '800 14px sans-serif';
+      ctx.fillText('Score: ' + score, W / 2, H / 2 - 2);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '600 11px sans-serif';
+      ctx.fillText('Best: ' + best + '  •  Dodged: ' + dodged, W / 2, H / 2 + 18);
+
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '700 12px sans-serif';
+      ctx.fillText('TAP TO RESTART', W / 2, H / 2 + 42);
+    }
+
+    ctx.restore();
+    requestAnimationFrame(update);
+  }
+
+  function moveLeft() {
+    if (gameOver) return;
+    if (currentLane > 0) currentLane--;
+    targetX = lanes[currentLane];
+  }
+
+  function moveRight() {
+    if (gameOver) return;
+    if (currentLane < lanes.length - 1) currentLane++;
+    targetX = lanes[currentLane];
+  }
+
+  function restart() {
+    score = 0;
+    dodged = 0;
+    combo = 1;
+    comboTimer = 0;
+    scoreEl.textContent = '0000';
+    traffic = [];
+    coins = [];
+    particles = [];
+    currentLane = 1;
+    targetX = lanes[currentLane];
+    playerX = lanes[currentLane];
+    speed = baseSpeed;
+    gameOver = false;
+  }
+
+  function addTapEvent(id, fn) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('pointerdown', function(e) { e.preventDefault(); fn(); });
+  }
+
+  addTapEvent('leftBtn', moveLeft);
+  addTapEvent('rightBtn', moveRight);
+
+  function handleCanvasTap(e) {
+    e.preventDefault();
+    if (gameOver) { restart(); return; }
+    var rect = cvs.getBoundingClientRect();
+    var clientX = e.clientX;
+    if (e.touches && e.touches.length > 0) clientX = e.touches[0].clientX;
+    var clickX = (clientX - rect.left) * (W / rect.width);
+    if (clickX < W / 2) moveLeft(); else moveRight();
+  }
+
+  cvs.addEventListener('pointerdown', handleCanvasTap);
+
+  update();
+})();
+</script>
+</body>
+</html>

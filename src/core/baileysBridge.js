@@ -1,5 +1,5 @@
 import {
-  generateWAMessageFromContent, generateWAMessage, generateMessageID, generateMessageIDV2, proto,
+  generateWAMessageContent, generateWAMessageFromContent, generateWAMessage, generateMessageID, generateMessageIDV2, proto,
   buildV2Content, buildV2ContextInfo,
   generateCodeBlockContentV2, generateInlineVideoWithStatsV2, generateReelContentV2,
   generateLinkContentV2, generateInlineImageWithTableV2, generateLatexContentV2,
@@ -1204,6 +1204,33 @@ export const baileysBridge = {
       // The fork auto-attaches the biz node for carouselMessage via getBizBinaryNode,
       // extracting actual button names from carousel cards.
     });
+  },
+
+  /**
+   * SECRET-FLOW CARD — interactiveMessage wrapped in viewOnceMessage.
+   *
+   * Scene fashion ("flash/secret menus" — Paxley/Moongod wrap every menu
+   * like this, 13 uses): the card renders with WhatsApp's one-time-view
+   * chrome. NOTE: our earlier device audit (2026-09) found some clients
+   * drop interactiveMessage payloads inside viewOnceMessage, while the
+   * scene bots run exactly this shape in production — so this is exposed
+   * as an explicit opt-in, NOT wired into production menus. Verify on a
+   * real device before adopting (`.testrich secret`).
+   */
+  async sendSecretFlow(sock, jid, { text, footer, title, buttons }, options = {}) {
+    // 1. Let the fork build the interactiveMessage from declarative nativeFlow
+    //    (prepareNativeFlowButtons handles all 27 button types incl. galaxyBar).
+    const { interactiveMessage } = await generateWAMessageContent({
+      nativeFlow: buttons,
+      ...(text ? { text } : {}),
+      ...(title ? { title } : {}),
+      ...(footer ? { footer } : {}),
+    }, { logger: undefined });
+    // 2. Wrap in viewOnceMessage and relay — relayMessage() injects the
+    //    messageContextInfo.messageSecret into the INNER message.
+    return await this.relayMessage(sock, jid, {
+      viewOnceMessage: { message: { interactiveMessage } },
+    }, options);
   },
 
   async sendProduct(sock, jid, { title, description, productId, currency, price, footer, thumbnail, businessOwnerJid } = {}, options = {}) {

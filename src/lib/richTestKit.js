@@ -16,6 +16,7 @@ import {
 } from 'baileys';
 import { AIRich } from './NIXCODE.js';
 import { hoistAfterRelay, rehostRichCardMedia } from './richMediaHoist.js';
+import { baileysBridge } from '../core/baileysBridge.js';
 
 // ── V1 + V2 generators (imported from the fork's rich-message-utils.js) ─────
 import {
@@ -1382,6 +1383,11 @@ export const RICH_TESTS = [
   // v0.3.18-r14 gems (galaxy_message + proto-native carousel)
   { id: 'galaxy',   label: '🌌 Galaxy Flows Bar', fn: testGalaxyBar,      group: 'r14 Gems' },
   { id: 'carousel', label: '🎠 Native Carousel',  fn: testNativeCarousel, group: 'r14 Gems' },
+  { id: 'secret',   label: '🔒 Secret Flow Card', fn: testSecretFlow,      group: 'r14 Gems' },
+  { id: 'dino',     label: '🦖 HTML Game: Dino',  fn: testHtmlGame('dino'),    group: 'r16 Gems' },
+  { id: 'htmlcalc', label: '🧮 HTML Calc',        fn: testHtmlGame('calc'),    group: 'r16 Gems' },
+  { id: 'monitor',  label: '📡 HTML Server Monitor', fn: testHtmlGame('monitor'), group: 'r16 Gems' },
+
   { id: 'v2codetable',  label: '💻 V2 Code+Table',     fn: testV2CodeWithTable,     group: 'Combos V2' },
   { id: 'v2maptable',   label: '📍 V2 Map+Table',      fn: testV2MapWithTable,      group: 'Combos V2' },
   { id: 'v2textimg',    label: '🖼️ V2 Text+Image',    fn: testV2TextWithImage,     group: 'Combos V2' },
@@ -1460,4 +1466,32 @@ export async function testNativeCarousel(sock, jid, quoted) {
     footer: 'NEXORA • v0.3.18-r14 gem (carouselMessage)',
   }, { quoted });
   return 'native carousel ✓';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// v0.3.18-r16 gems — viewOnce-wrapped interactive card (scene "secret menu")
+// and in-chat HTML games via GenAIaeacdsnwHtmlPrimitive.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function testSecretFlow(sock, jid, quoted) {
+  // Device-check the scene's viewOnce-wrapped interactive menu look against
+  // our earlier audit finding that some clients drop these payloads.
+  await baileysBridge.sendSecretFlow(sock, jid, {
+    text: '🔒 *Secret Flow Card* — viewOnceMessage-wrapped interactiveMessage. The scene\'s "flash menu" chrome.',
+    footer: 'NEXORA • r16 gem (viewOnce-wrapped interactive)',
+    buttons: [
+      { text: '👉 Ping', id: '.ping' },
+      { text: '📋 Copy', copy: 'secret-card-test' },
+      { galaxyBar: { cta: '✨ Flows bar inside a viewOnce card' } },
+    ],
+  }, { quoted });
+  return 'secret flow card ✓';
+}
+
+export function testHtmlGame(game) {
+  return async (sock, jid, quoted) => {
+    const { sendHtmlGame } = await import('./htmlGames.js');
+    const result = await sendHtmlGame(sock, jid, { game, quoted });
+    if (!result.ok) throw new Error(result.reason);
+    return `html game "${result.game}" ✓`;
+  };
 }

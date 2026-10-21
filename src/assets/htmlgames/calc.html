@@ -1,0 +1,470 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@700;900&display=swap');
+
+*{
+  box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;
+  user-select:none;
+}
+
+body{
+  margin:0;
+  background:#0A0A0F;
+  font-family:'Roboto',Arial,sans-serif;
+  color:#fff;
+  touch-action:manipulation;
+}
+
+.calculator{
+  width:100%;
+  max-width:420px;
+  margin:auto;
+  padding:16px;
+}
+
+.card{
+  background:linear-gradient(
+    180deg,
+    #111118 0%,
+    #0A0A0F 100%
+  );
+
+  border:2px solid #2A2A35;
+  border-radius:18px;
+  padding:20px;
+
+  box-shadow:
+    0 0 25px rgba(0,140,255,.12);
+}
+
+.title{
+  font-size:11px;
+  letter-spacing:2px;
+  color:#00A2FF;
+  margin-bottom:8px;
+  font-weight:900;
+}
+
+.display{
+  background:#16161F;
+  border:2px solid #2E2E3A;
+  border-radius:12px;
+
+  padding:18px;
+  margin-bottom:16px;
+
+  text-align:right;
+  font-size:32px;
+  font-weight:900;
+
+  min-height:60px;
+  word-wrap:break-word;
+
+  box-shadow:
+    inset 0 0 15px rgba(0,0,0,.4);
+
+  overflow:hidden;
+}
+
+.sub{
+  text-align:right;
+  font-size:14px;
+  color:#8A8A9E;
+
+  margin-top:-12px;
+  margin-bottom:16px;
+
+  height:18px;
+  overflow:hidden;
+}
+
+.buttons{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:10px;
+}
+
+.btn{
+  border:none;
+  border-radius:10px;
+
+  padding:16px;
+
+  font-size:20px;
+  font-weight:900;
+
+  cursor:pointer;
+
+  transition:.15s;
+
+  background:#1F1F29;
+  color:#fff;
+
+  border:1px solid #2E2E3A;
+}
+
+.btn:active{
+  transform:scale(.92);
+}
+
+.num:hover{
+  background:#25252F;
+}
+
+.op{
+  background:#23232E;
+  color:#00A2FF;
+}
+
+.op:hover{
+  background:#2A2A35;
+
+  box-shadow:
+    0 0 10px rgba(0,162,255,.3);
+}
+
+.eq{
+  background:
+    linear-gradient(
+      135deg,
+      #00A2FF,
+      #0080FF
+    );
+
+  color:#fff;
+
+  box-shadow:
+    0 0 15px rgba(0,162,255,.4);
+}
+
+.eq:hover{
+  filter:brightness(1.15);
+}
+</style>
+
+<div class="calculator">
+
+  <div class="card">
+
+    <div class="title">
+      KYOUAN CALCULATOR
+    </div>
+
+    <div id="display" class="display">
+      0
+    </div>
+
+    <div id="sub" class="sub">
+      &nbsp;
+    </div>
+
+    <div class="buttons">
+
+      <button class="btn op" data-v="C">
+        C
+      </button>
+
+      <button class="btn op" data-v="DEL">
+        ⌫
+      </button>
+
+      <button class="btn op" data-v="%">
+        %
+      </button>
+
+      <button class="btn op" data-v="/">
+        ÷
+      </button>
+
+
+      <button class="btn num" data-v="7">
+        7
+      </button>
+
+      <button class="btn num" data-v="8">
+        8
+      </button>
+
+      <button class="btn num" data-v="9">
+        9
+      </button>
+
+      <button class="btn op" data-v="*">
+        ×
+      </button>
+
+
+      <button class="btn num" data-v="4">
+        4
+      </button>
+
+      <button class="btn num" data-v="5">
+        5
+      </button>
+
+      <button class="btn num" data-v="6">
+        6
+      </button>
+
+      <button class="btn op" data-v="-">
+        −
+      </button>
+
+
+      <button class="btn num" data-v="1">
+        1
+      </button>
+
+      <button class="btn num" data-v="2">
+        2
+      </button>
+
+      <button class="btn num" data-v="3">
+        3
+      </button>
+
+      <button class="btn op" data-v="+">
+        +
+      </button>
+
+
+      <button
+        class="btn num"
+        data-v="0"
+        style="grid-column:span 2"
+      >
+        0
+      </button>
+
+      <button class="btn num" data-v=".">
+        .
+      </button>
+
+      <button class="btn eq" data-v="=">
+        =
+      </button>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+
+let expr = "";
+
+const display =
+  document.getElementById("display");
+
+const sub =
+  document.getElementById("sub");
+
+
+function update(){
+
+  display.textContent =
+    expr || "0";
+
+}
+
+
+function calculate(){
+
+  try{
+
+    if(!expr){
+      return;
+    }
+
+    /*
+     * Ubah simbol tampilan
+     * menjadi operator JavaScript.
+     */
+
+    let expression =
+      expr
+        .replace(/×/g,"*")
+        .replace(/÷/g,"/");
+
+
+    /*
+     * Persentase sederhana.
+     */
+
+    expression =
+      expression.replace(
+        /([0-9.]+)%/g,
+        "($1/100)"
+      );
+
+
+    /*
+     * Evaluasi ekspresi.
+     */
+
+    let result =
+      Function(
+        '"use strict"; return (' +
+        expression +
+        ')'
+      )();
+
+
+    if(
+      typeof result !== "number" ||
+      !Number.isFinite(result)
+    ){
+      throw new Error("Invalid");
+    }
+
+
+    sub.textContent =
+      expr + " =";
+
+
+    expr =
+      String(result);
+
+
+    update();
+
+  }catch(error){
+
+    expr = "Error";
+
+    update();
+
+    setTimeout(function(){
+
+      expr = "";
+
+      sub.textContent =
+        " ";
+
+      update();
+
+    },1200);
+
+  }
+
+}
+
+
+document
+  .querySelectorAll(".btn")
+  .forEach(function(button){
+
+    button.onclick =
+      function(){
+
+        const value =
+          button.dataset.v;
+
+
+        /*
+         * Clear
+         */
+
+        if(value === "C"){
+
+          expr = "";
+
+          sub.textContent =
+            " ";
+
+        }
+
+
+        /*
+         * Delete
+         */
+
+        else if(value === "DEL"){
+
+          expr =
+            expr.slice(0,-1);
+
+        }
+
+
+        /*
+         * Equal
+         */
+
+        else if(value === "="){
+
+          calculate();
+
+          return;
+
+        }
+
+
+        /*
+         * Operator / angka
+         */
+
+        else{
+
+          /*
+           * Jangan biarkan
+           * operator ganda.
+           */
+
+          const operators =
+            ["+","-","*","/","%"];
+
+          const last =
+            expr.slice(-1);
+
+
+          if(
+            operators.includes(value) &&
+            operators.includes(last)
+          ){
+
+            expr =
+              expr.slice(0,-1);
+
+          }
+
+
+          /*
+           * Cegah dua titik
+           * dalam satu angka.
+           */
+
+          if(value === "."){
+
+            const parts =
+              expr.split(/[+\-*/%]/);
+
+            const current =
+              parts[parts.length - 1];
+
+            if(current.includes(".")){
+              return;
+            }
+
+          }
+
+
+          expr += value;
+
+        }
+
+
+        update();
+
+      };
+
+  });
+
+
+update();
+
+</script>
