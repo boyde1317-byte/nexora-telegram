@@ -18,17 +18,15 @@ primary_region = "lhr"
 
 [env]
   NODE_ENV = "production"
+  SESSION_PATH = "/app/data/session"
+  DB_PATH = "/app/data/db.json"
+
+# Single Fly volume (platform limit: 1 volume per machine) — session + db.json inside
+[[mounts]]
+  source = "nexora_data"
+  destination = "/app/data"
 
 # Auth session — lost volume = re-pairing required
-[[mounts]]
-  source = "nexora_session"
-  destination = "/app/session"
-
-# Bot database (db.json)
-[[mounts]]
-  source = "nexora_database"
-  destination = "/app/src/database"
-
 [http_service]
   internal_port = 3000
   force_https = true
