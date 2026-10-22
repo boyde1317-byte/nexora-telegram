@@ -18,6 +18,7 @@ primary_region = "lhr"
 
 [env]
   NODE_ENV = "production"
+  PORT = "3000"
   SESSION_PATH = "/app/data/session"
   DB_PATH = "/app/data/db.json"
 
