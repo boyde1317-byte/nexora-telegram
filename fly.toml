@@ -17,6 +17,7 @@ primary_region = "lhr"
 [build]
 
 [env]
+  NEXORA_MENU_GIF_URL = "https://base44.app/api/apps/6acfd0aaa54519204c9b5698/files/mp/public/6acfd0aaa54519204c9b5698/50442af8d_nexora-menu-loop.mp4"
   NODE_ENV = "production"
   PORT = "3000"
   SESSION_PATH = "/app/data/session"
