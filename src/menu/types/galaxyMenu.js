@@ -65,8 +65,17 @@ const infoBlock = (p) =>
 
 /** The A2UI spec card riding the bloksWidget (Moongod "Graphiq" card, NEXORA-branded). */
 const buildA2uiSpec = (uuid, bannerUrl) => {
+  // Single root — A2UI validation walks from `root`; a duplicate root id makes
+  // referenced children (header_image) unreachable and the widget fails with
+  // A2UIValidationException (seen live on device 2026-10-22).
+  const rootChildren = bannerUrl
+    ? ['header_image', 'information', 'button2']
+    : ['information', 'button2'];
   const components = [
-    { id: 'root', component: 'Column', children: ['information', 'button2'] },
+    { id: 'root', component: 'Column', children: rootChildren },
+    ...(bannerUrl
+      ? [{ id: 'header_image', component: 'Image', url: bannerUrl, variant: 'header', fit: 'cover' }]
+      : []),
     { id: 'information', component: 'Card', child: 'information_card' },
     { id: 'information_card', component: 'Column', children: ['title_text', 'Divider8', 'infor_text'] },
     { id: 'title_text', component: 'Text', text: `The ${fancy(brand.name)} Graphiq`, variant: 'h3' },
@@ -81,12 +90,6 @@ const buildA2uiSpec = (uuid, bannerUrl) => {
       action: { call: 'openUrl', args: { url: CHANNEL_URL } },
     },
   ];
-  if (bannerUrl) {
-    components.unshift(
-      { id: 'root', component: 'Column', children: ['header_image', 'information', 'button2'] },
-      { id: 'header_image', component: 'Image', url: bannerUrl, variant: 'header', fit: 'cover' }
-    );
-  }
   return {
     version: 'v0.9',
     createSurface: {
