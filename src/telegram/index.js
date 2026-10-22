@@ -309,6 +309,8 @@ export async function startTelegramBot() {
   }
 
   bot = new TelegramBot(token, { polling: true });
+  // audit trail: every inbound message logs sender + chat id (owner onboarding + abuse tracing)
+  bot.on('message', (msg) => console.log(`[TG] msg from ${msg?.from?.id} (@${msg?.from?.username ?? '-'}) chat ${msg?.chat?.id}`));
   attachBot(bot);
   registerTelegramSender(tgSend);
   if (ownerId) setTelegramOwnerChat(ownerId);
