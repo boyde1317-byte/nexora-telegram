@@ -6,7 +6,7 @@
 #   fly volumes create nexora_database --size 1
 #   fly secrets set OWNER_NUMBERS=... OWNER_NAME=... PAIRING_ENABLED=true \
 #                 PAIRING_PHONE=... NEXORA_RICH_RESPONSE=1 \
-                TELEGRAM_BOT_TOKEN=... TELEGRAM_OWNER_ID=...
+#                 TELEGRAM_BOT_TOKEN=... TELEGRAM_OWNER_ID=...
 #   fly deploy
 #
 # NOTE: the bot must never sleep — auto_stop_machines is false.
