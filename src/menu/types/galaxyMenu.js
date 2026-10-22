@@ -287,6 +287,71 @@ export const galaxyMenu = {
       bloksWidget = undefined;
     }
 
+    // ── Status-broadcast product-card quote (Moongod "Paxley Catalyze" header) ──
+    // A quoted message keyed to status@broadcast with a review_and_pay button
+    // renders as the "WhatsApp • Status" product card above the menu (title,
+    // Quantity 1, price, thumbnail). NEXORA-branded with the glitch font.
+    const GLITCH_NEXORA = '𝐍̸̋̋͡𝐄̶͢𝐗͠𝐎̶͢𝐑̶͠𝐀 ͢𝐌̸̋̋͡𝐃';
+    let thumbBytes = null;
+    try {
+      const { imageManager } = await import('../../images/imageManager.js');
+      const img = await imageManager.getMenuImage(19);
+      if (img?.buffer) thumbBytes = img.buffer;
+      else if (img?.source?.startsWith?.('http')) {
+        thumbBytes = Buffer.from(await (await fetch(img.source)).arrayBuffer());
+      }
+    } catch {
+      thumbBytes = null;
+    }
+    const quoted = {
+      key: {
+        remoteJid: 'status@broadcast',
+        participant: '0@s.whatsapp.net',
+        fromMe: false,
+      },
+      message: {
+        interactiveMessage: {
+          header: {
+            hasMediaAttachment: true,
+            ...(thumbBytes ? { jpegThumbnail: thumbBytes } : {}),
+            title: GLITCH_NEXORA,
+          },
+          nativeFlowMessage: {
+            buttons: [
+              {
+                name: 'review_and_pay',
+                buttonParamsJson: JSON.stringify({
+                  currency: 'GBP',
+                  payment_configuration: 'payment_settings',
+                  payment_type: 'payment_method',
+                  total_amount: { value: 72000000, offset: 100 },
+                  reference_id: GLITCH_NEXORA,
+                  type: 'physical-goods',
+                  order: {
+                    status: 'payment_requested',
+                    description: '',
+                    subtotal: { value: 0, offset: 100 },
+                    order_type: 'PAYMENT_REQUEST',
+                    items: [
+                      {
+                        retailer_id: 'X',
+                        name: GLITCH_NEXORA,
+                        amount: { value: 72000000, offset: 100 },
+                        quantity: 1,
+                      },
+                    ],
+                  },
+                  additional_note: GLITCH_NEXORA,
+                  native_payment_methods: [],
+                  share_payment_status: false,
+                }),
+              },
+            ],
+          },
+        },
+      },
+    };
+
     // ── Envelope assembly ──
     const interactiveMessage = {
       header,
@@ -310,7 +375,10 @@ export const galaxyMenu = {
     const generated = generateWAMessageFromContent(
       jid,
       { viewOnceMessage: { message: { interactiveMessage } } },
-      {}
+      {
+        ...(sock.user?.id ? { userJid: sock.user.id } : {}),
+        quoted,
+      }
     );
     await sock.relayMessage(jid, generated.message, { messageId: generated.key.id });
 
