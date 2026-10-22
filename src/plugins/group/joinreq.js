@@ -58,7 +58,7 @@ export default {
           text: `🚪 *JOIN GATE ${mode === 'on' ? 'ENABLED' : 'DISABLED'}*\n\n${mode === 'on'
             ? 'New members now need admin approval before joining. Pending requests appear in `.joinreq list`.'
             : 'New members can join directly again — no approval needed.'}`,
-          footer: '© NEXORA-MD by Moonson',
+          footer: '© NEXORA-MD by Aizen',
         }, [
           { label: 'View Requests', cmd: `${p}joinreq list` },
           { label: mode === 'on' ? 'Disable Gate' : 'Enable Gate', cmd: `${p}joinreq gate ${mode === 'on' ? 'off' : 'on'}` },
@@ -110,7 +110,7 @@ export default {
 
         return await actionCardWithAd(sock, m.from, {
           text: lines.join('\n'),
-          footer: '© NEXORA-MD by Moonson',
+          footer: '© NEXORA-MD by Aizen',
         }, [
           { label: 'View Remaining', cmd: `${p}joinreq list` },
         ], { title: 'JOIN REQUESTS', body: `${action} queue` }, { quoted: m });
@@ -130,7 +130,7 @@ export default {
     if (!requests.length) {
       return await actionCardWithAd(sock, m.from, {
         text: `📋 *JOIN REQUEST QUEUE*\n\nEmpty — nobody is waiting for approval.${gateOn === false ? '\n\n⚠️ The join gate is *off*: members join directly without approval.' : ''}`,
-        footer: '© NEXORA-MD by Moonson',
+        footer: '© NEXORA-MD by Aizen',
       }, [
         { label: 'Enable Gate', cmd: `${p}joinreq gate on` },
       ], { title: 'JOIN REQUESTS', body: 'Queue empty' }, { quoted: m });
@@ -144,7 +144,7 @@ export default {
 
     return await actionCardWithAd(sock, m.from, {
       text: `📋 *JOIN REQUEST QUEUE* — *${requests.length}* waiting\n\n${rows.slice(0, 12).map((r) => `• ${r[0]}${r[1] !== '-' ? ` — ${r[1]}` : ''}`).join('\n')}${requests.length > 12 ? `\n… and ${requests.length - 12} more` : ''}${gateOn === false ? '\n\n⚠️ Gate is *off* — approve anyway to let them in now.' : ''}`,
-      footer: '© NEXORA-MD by Moonson',
+      footer: '© NEXORA-MD by Aizen',
     }, [
       { label: '✅ Approve All',  cmd: `${p}joinreq approve all` },
       { label: '🚫 Reject All',   cmd: `${p}joinreq reject all` },

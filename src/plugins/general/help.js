@@ -155,7 +155,7 @@ export default {
         return [`${categoryEmoji(c)} ${titleize(c)} (${cmds.length})`, shown];
       }),
       headerText: '❖ NEXORA-MD Command Categories',
-      footer: `Use ${p}help for the full list • © NEXORA-MD by Moonson`,
+      footer: `Use ${p}help for the full list • © NEXORA-MD by Aizen`,
     });
     if (listSent) return;
 

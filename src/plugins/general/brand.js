@@ -31,7 +31,7 @@ export default {
   name: 'brand',
   aliases: ['brandcard'],
   category: 'general',
-  description: 'Interactive brand card with a full-screen brand details sheet (Moonson-style).',
+  description: 'Interactive brand card with a full-screen brand details sheet (NIXCODE card).',
   cooldown: 5000,
   execute: async ({ sock, m }) => {
     try {

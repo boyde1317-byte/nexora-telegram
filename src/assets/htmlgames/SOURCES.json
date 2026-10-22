@@ -1,37 +1,53 @@
 {
-  "_comment": "Source-of-truth manifest for the vendored GenAIaeacdsnwHtmlPrimitive game payloads. These files are byte-faithful copies of their real sources (verified sha256). Run scripts/verify-htmlgames-sources.mjs to re-verify against the live sources. We vendor instead of hot-linking so a third-party repo can never swap the payloads the bot renders.",
+  "_comment": "Source-of-truth manifest for the vendored GenAIaeacdsnwHtmlPrimitive game payloads. upstreamSha256 pins the byte-faithful original (provenance); localSha256 pins our NEXORA-rebranded copy (owner-directed 2026-10-22: third-party developer names removed from rendered payloads). scripts/verify-htmlgames-sources.mjs checks localSha256 for local integrity and upstreamSha256 for upstream drift; when upstream changes, re-apply the rebrand and re-pin both hashes. We vendor instead of hot-linking so a third-party repo can never swap the payloads the bot renders.",
   "files": {
     "chess.html": {
       "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/chess.html",
-      "sha256": "ee7abfe2c004c3ab41e9cb9d2e6e5bea5f98cff3d39f369825694fd24f455224"
+      "localSha256": "d48274164c4028b591500bd7b058182a43ebca9ed52e6ec2f33a628c25c61f9c",
+      "upstreamSha256": "ee7abfe2c004c3ab41e9cb9d2e6e5bea5f98cff3d39f369825694fd24f455224",
+      "rebranded": true
     },
     "dino.html": {
       "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/dino.html",
-      "sha256": "7e01c9cef44af2c2ca48df8cc27e6f72648e01da0b13cd91cdc352d052b12ee5"
+      "localSha256": "109d96a95f6015bd46cdb083216c761ac0f85100ed1b6315a7394e9afc84d043",
+      "upstreamSha256": "7e01c9cef44af2c2ca48df8cc27e6f72648e01da0b13cd91cdc352d052b12ee5",
+      "rebranded": true
     },
     "mbim.html": {
       "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/mbim.html",
-      "sha256": "bee69f57cbaa35b156126cb62d93b4973eba1634a574d253602890d9106b91af"
+      "localSha256": "0e175549e7a57f8632ecf2f39e6495ad40f65c90d393690946f70f8234e0d4e0",
+      "upstreamSha256": "bee69f57cbaa35b156126cb62d93b4973eba1634a574d253602890d9106b91af",
+      "rebranded": true
     },
     "plane.html": {
       "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/plane.html",
-      "sha256": "cee99519bcbd04f4266ed1f843c7bcf00c6ad235518f5d90ae2e61d6891b2e28"
+      "localSha256": "c86fc7890b46fc9a351fa5786715942364729c52f48d744b78f5e06c3048d532",
+      "upstreamSha256": "cee99519bcbd04f4266ed1f843c7bcf00c6ad235518f5d90ae2e61d6891b2e28",
+      "rebranded": true
     },
     "ttc.html": {
       "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/ttc.html",
-      "sha256": "97977b4139856c720cb4523188735f8bb214bd75594230ea43c85b8e2f6c62fe"
+      "localSha256": "23cd46ee117c41669f8273e67f4fec39b9edcd92deeafde2b63a284a6a20f854",
+      "upstreamSha256": "97977b4139856c720cb4523188735f8bb214bd75594230ea43c85b8e2f6c62fe",
+      "rebranded": true
     },
     "calc.html": {
       "source": "inline payload string in Moongod.js (case \"calc\") — no remote file; source of truth is the payload literal itself",
-      "sha256": "87c8abfea3dff3012bbe03606a77a4586e1f445b9af45d8545a4d4e8fdbfc9ae"
+      "localSha256": "fb00f3da49b2a510687584f23752a1632fe91fd84c42846161c5050ca29a072a",
+      "upstreamSha256": "87c8abfea3dff3012bbe03606a77a4586e1f445b9af45d8545a4d4e8fdbfc9ae",
+      "rebranded": true
     },
     "monitor.html": {
       "source": "https://raw.githubusercontent.com/noXxza/data/refs/heads/main/ping.html",
-      "sha256": "fb94e2a1fec40cb487b7ec18e06ff0940bffadcaabb555710d43a85fd927a850"
+      "localSha256": "260dde49b717034044970e04a6c3ef638d33fff3825924b6164386ff545c5399",
+      "upstreamSha256": "fb94e2a1fec40cb487b7ec18e06ff0940bffadcaabb555710d43a85fd927a850",
+      "rebranded": true
     },
     "certificate.json": {
       "source": "https://raw.githubusercontent.com/kyouantzy/data/refs/heads/main/certificate.json",
-      "sha256": "abc1a6587c7a5079a8604a9d2f633ef30dbb560ad9999e6f0cc0d53b2488a078"
+      "localSha256": "abc1a6587c7a5079a8604a9d2f633ef30dbb560ad9999e6f0cc0d53b2488a078",
+      "upstreamSha256": "abc1a6587c7a5079a8604a9d2f633ef30dbb560ad9999e6f0cc0d53b2488a078",
+      "rebranded": false
     }
   }
 }

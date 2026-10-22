@@ -90,7 +90,7 @@ export default {
 
       return await actionCardWithAd(sock, m.from, {
         text: `${remove ? '🗑️' : emojiArg} *${remove ? 'REACTION REMOVED' : 'REACTION SENT'}*\n\n📢 ${resolved.metadata?.name ? `*${String(resolved.metadata.name).slice(0, 40)}*` : 'Channel'}\n#${postId}${remove ? '' : `\n\n${emojiArg} now shows on that post.`}`,
-        footer: '© NEXORA-MD by Moonson',
+        footer: '© NEXORA-MD by Aizen',
       }, [
         { label: 'My Channels', cmd: `${p}channels` },
       ], { title: 'CHANNEL REACTIONS', body: remove ? 'removed' : 'sent' }, { quoted: m });

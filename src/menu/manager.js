@@ -28,16 +28,17 @@ class MenuManager {
   }
 
   /**
-   * Get the active menu style. Defaults to style ID '1' (documentInteractive —
+   * Get the active menu style. Defaults to style ID '19' (galaxyMenu —
+   * Moongod-style full button-stack menu). Owner-directed 2026-10-22:
    * full command directory: every command on its own line, grouped under
    * UPPERCASE category headers, inside the interactive menu card).
-   * Owner-directed 2026-09-18: the menu must LIST the commands; the
-   * category-picker drill-down (17) stays available via `.setmenu 17`.
+   * the earlier documentInteractive (1) full directory stays available via
+   * `.setmenu 1`, the category drill-down (17) via `.setmenu 17`.
    * A previously persisted settings.activeMenu still wins, so owners who
    * deliberately picked a style keep it.
    */
   getActiveMenu() {
-    const activeId = db.data.settings?.activeMenu || '1';
+    const activeId = db.data.settings?.activeMenu || '19';
     return this.getMenu(activeId) || this.getMenu('1') || this.getMenu('17');
   }
 

@@ -46,7 +46,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Developer contact shown on the main menu
-const DEV_CONTACT = { name: 'DeathCore_Xr', url: 'https://t.me/DeathCore_Xr' };
+const DEV_CONTACT = { name: 'Nexora Panel', url: 'https://t.me/NexoraConnect3Crbot' };
 
 // Branded banner for /start (best-effort; absent file just logs a warning)
 const BANNER_PATH = path.join(process.cwd(), 'media', 'images', 'banners', 'nexora-banner.jpg');

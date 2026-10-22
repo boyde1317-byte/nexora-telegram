@@ -21,6 +21,7 @@ import richCard from './types/richCard.js';
 import buttonsCard from './types/buttonsCard.js';
 import listFallback from './types/listFallback.js';
 import moonsonCard from './types/moonsonCard.js';
+import galaxyMenu from './types/galaxyMenu.js';
 import commandDirectory from './types/commandDirectory.js';
 
 // Register them all statically in the manager
@@ -41,7 +42,9 @@ menuManager.register(orderMessage);
 menuManager.register(richCard);
 menuManager.register(buttonsCard);
 menuManager.register(listFallback);
-menuManager.register(moonsonCard);
+menuManager.register(moonsonCard); // legacy alias 'moonsonCard' kept for .setmenu compat
+menuManager.menus.set('moonsoncard', moonsonCard);
+menuManager.register(galaxyMenu);
 menuManager.register(commandDirectory);
 
 /**

@@ -49,7 +49,7 @@ export default {
   name: 'store',
   aliases: ['servers', 'hosting'],
   category: 'general',
-  description: 'Server hosting plans with an interactive plan picker (Moonson-style card).',
+  description: 'Server hosting plans with an interactive plan picker card.',
   cooldown: 5000,
   execute: async ({ sock, m, prefix }) => {
     const p = prefix || '.';

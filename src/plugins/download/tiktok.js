@@ -57,7 +57,7 @@ export default {
           tableHeaders: ['Metric', 'Value'],
           tableRows: rows,
           headerText: '🎬 TikTok Downloader',
-          footer: '© NEXORA-MD by Moonson',
+          footer: '© NEXORA-MD by Aizen',
         });
         if (sent) return;
 
@@ -78,7 +78,7 @@ export default {
           title: data.title || 'TikTok Video',
           headers: ['Metric', 'Value'],
           rows,
-          footer: '© NEXORA-MD by Moonson',
+          footer: '© NEXORA-MD by Aizen',
         });
       } catch (err) {
         await m.reply.error(`TikTok download failed: ${err.message}`);

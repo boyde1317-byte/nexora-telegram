@@ -145,13 +145,13 @@ async function runRichTable(sock, m) {
       ['richResponse',    capabilities.richResponse ? '✅ Yes' : '⚠️ No', 'botForwarded'],
       ['nativeFlow',      capabilities.nativeFlow   ? '✅ Yes' : '⚠️ No', 'interactiveMsg'],
     ],
-    footer: 'NEXORA-MD itsliaaa 0.3.18-final fork',
+    footer: 'NEXORA-MD Baileys fork v0.3.18',
   }, { quoted: m });
   return 'rich_table ✓';
 }
 
 async function runRichCode(sock, m) {
-  const code = `// NEXORA-MD — itsliaaa 0.3.18-final fork
+  const code = `// NEXORA-MD — NEXORA Baileys fork v0.3.18
 import { baileysBridge } from './src/core/baileysBridge.js';
 import { mixedCard } from './src/lib/interactiveKit.js';
 

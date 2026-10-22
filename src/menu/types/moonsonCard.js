@@ -20,8 +20,8 @@ import { buildAboutContextInfo } from '../../lib/waUtils.js';
  */
 export const moonsonCardMenu = {
   id: 18,
-  name: 'moonsonCard',
-  description: 'Moonson-style NIXCODE card — image header, category navigation sheet, pill buttons',
+  name: 'nixcodeCard',
+  description: 'NIXCODE Galaxy card — image header, category navigation sheet, pill buttons',
   supportedMessages: ['interactiveMessage', 'nativeFlowMessage'],
 
   renderer: async ({ sock, m, menuData }) => {

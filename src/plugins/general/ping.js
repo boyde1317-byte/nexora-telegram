@@ -80,7 +80,7 @@ export default {
               '› Load  : **' + cpuLoad.toFixed(2) + '**'
           )
           .addTip('_' + comment.replace(/[*_]/g, '') + '_')
-          .setFooter('© NEXORA-MD by Moonson')
+          .setFooter('© NEXORA-MD by Aizen')
           .send(m.from, { quoted: m });
         return;
       } catch (err) {

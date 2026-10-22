@@ -120,7 +120,7 @@ export async function testV1Table(sock, jid, quoted) {
       ['LaTeX',              '🧪', 'requires renderer'],
     ],
     quoted,
-    { headerText: '🧪 V1 Table Generator Test', footer: 'NEXORA-MD • itsliaaa fork + OURIN port' },
+    { headerText: '🧪 V1 Table Generator Test', footer: 'NEXORA-MD • NEXORA Baileys fork' },
   );
   await _relayGenerated(sock, jid, generated, { quoted });
   return 'V1 table ✓';
@@ -157,7 +157,7 @@ export async function testV1Code(sock, jid, quoted) {
     '// Send an interactive card with quick_reply buttons',
     'await baileysBridge.sendInteractive(sock, jid, {',
     "  body: 'Hello from NEXORA!',",
-    "  footer: 'Powered by itsliaaa fork',",
+    "  footer: 'Powered by the NEXORA Baileys fork',",
     '  buttons: [',
     "    { name: 'quick_reply', params: { text: 'Ping', id: '.ping' } },",
     "    { name: 'cta_url',     params: { text: 'GitHub', url: 'https://github.com/boyde1317-byte' } },",
@@ -320,7 +320,7 @@ export async function testV2Go(sock, jid, quoted) {
  */
 export async function testV1Link(sock, jid, quoted) {
   const generated = generateLinkContent(
-    'NEXORA-MD uses a custom Baileys fork with rich message support. The fork extends itsliaaa/Baileys with OURIN-baileys generators for tables, code blocks, and LaTeX.',
+    'NEXORA-MD uses a custom Baileys fork with rich message support. The fork extends the Baileys reference with OURIN-baileys generators for tables, code blocks, and LaTeX.',
     [
       { url: 'https://github.com/boyde1317-byte/baileys', displayName: 'Baileys Fork' },
       { url: 'https://github.com/boyde1317-byte/NEXORA-MD', displayName: 'NEXORA-MD' },
@@ -1298,7 +1298,7 @@ export async function testMoonsonPingCombo(sock, jid, quoted) {
     .addText(
       '## ◈ Latency\n\n' +
       '› API Ping : **' + apiLatency + ' ms**\n' +
-      '› Uptime   : device-proven combo from Moonson .ping'
+      '› Uptime   : device-proven AIRich ping combo'
     )
     .addText(
       '## ◈ Memory\n\n' +
@@ -1313,7 +1313,7 @@ export async function testMoonsonPingCombo(sock, jid, quoted) {
     .addTip('Platform : ' + os.type() + ' ' + os.arch() + ' · Node.js : ' + process.version)
     .addSuggest(['.menu', '.ping', '.stats'])
     .send(jid, { quoted });
-  return 'Moonson ping combo ✓';
+  return 'AIRich ping combo ✓';
 }
 
 /**
@@ -1330,7 +1330,7 @@ export async function testMoonsonFbCombo(sock, jid, quoted) {
     .addTip('_Tap the video to play_')
     .setFooter('© NEXORA-MD by Aizen')
     .send(jid, { quoted });
-  return 'Moonson fb combo ✓';
+  return 'AIRich fb combo ✓';
 }
 
 export const RICH_TESTS = [
@@ -1396,8 +1396,8 @@ export const RICH_TESTS = [
   { id: 'v2gridtable',  label: '🖼️ V2 Grid+Table',    fn: testV2GridWithTable,     group: 'Combos V2' },
   { id: 'v2dyntable',   label: '🎞️ V2 Dynamic+Table', fn: testV2DynamicWithTable,  group: 'Combos V2' },
   // Moonson-proven AIRich combos (multi-primitive unifiedResponse)
-  { id: 'msping',      label: '🏓 Moonson Ping Combo', fn: testMoonsonPingCombo, group: 'Moonson' },
-  { id: 'msfb',        label: '📘 Moonson FB Combo',    fn: testMoonsonFbCombo,   group: 'Moonson' },
+  { id: 'msping',      label: '🏓 AIRich Ping Combo', fn: testMoonsonPingCombo, group: 'AIRich' },
+  { id: 'msfb',        label: '📘 AIRich FB Combo',    fn: testMoonsonFbCombo,   group: 'AIRich' },
 ];
 
 export async function runRichTest(sock, jid, testId, quoted) {
