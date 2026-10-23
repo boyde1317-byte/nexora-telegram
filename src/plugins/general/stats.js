@@ -9,6 +9,8 @@ import { db} from '../../database/db.js';
 import { asciiBuilder} from '../../ui/asciiBuilder.js';
 import { formatUptime} from '../../lib/utils.js';
 import brand from '../../../config/brand.js';
+import capabilities from '../../core/capabilities.js';
+import { baileysBridge } from '../../core/baileysBridge.js';
 
 
 import { buildEnrichedContextInfo} from '../../lib/enrichContext.js';
@@ -102,6 +104,38 @@ export default {
         ],
       },
     ];
+
+    // ── Rich tier: native V2 table (GenATableUXPrimitive — sendRichTable) ─
+    if (capabilities.richResponse) {
+      try {
+        const richRows = [
+          ['Status', connected ? '✅ Online' : '❌ Disconnected'],
+          ['Bot', `${botName} (${botNumber})`],
+          ['Uptime', uptime],
+          ['Heap', `${Math.round(mem.heapUsed / 1024 / 1024)} / ${Math.round(mem.heapTotal / 1024 / 1024)} MB (${heapPct}%)`],
+          ['RSS', `${rssMb} MB`],
+          ['Commands', `${pluginsLoaded} commands, ${aliasesCount} aliases`],
+          ['Executions', totalExecutions.toLocaleString()],
+          ['Errors', totalErrors.toLocaleString()],
+          ...topCommands.map(([name, s], i) =>
+            [`Top ${i + 1}`, `${name} — ${s.executions} uses${s.errors > 0 ? ` (${s.errors} err)` : ''}`]),
+          ['Users', users.toLocaleString()],
+          ['Groups', groups.toLocaleString()],
+          ['Premium', String(premiumUsers)],
+          ['Banned', String(bannedUsers)],
+          ['Core', `${brand.name} v${brand.version}`],
+          ['Node', `${process.version} • ${process.platform} ${process.arch}`],
+        ];
+        return await baileysBridge.sendRichTable(sock, m.from, {
+          title: `${brand.name} Statistics`,
+          headers: ['Metric', 'Value'],
+          rows: richRows,
+          footer: 'NEXORA • Rich Table V2',
+        }, { quoted: m });
+      } catch (err) {
+        console.warn('[stats] rich table failed, ASCII fallback:', err.message);
+      }
+    }
 
     const text = asciiBuilder.sections(`${brand.name} Statistics`, sections);
 

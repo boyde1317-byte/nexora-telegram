@@ -13,6 +13,8 @@
  *   unknown words (slang…) → AI fallback writes the same shape,
  *                     footer notes it is AI-defined (no audio)
  */
+import capabilities from '../../core/capabilities.js';
+import { baileysBridge } from '../../core/baileysBridge.js';
 import { richTableCard, mixedCard } from '../../lib/interactiveKit.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { getAiClient, hasApiKey } from '../../assets/aiClient.js';
@@ -196,6 +198,27 @@ export default {
           await sock.sendMessage(m.from, {
             text: rows.map(r => `*${r.type}*\n${r.definition}`).join('\n\n'),
           }, { quoted: m });
+        }
+      }
+
+      // ── Rich tier: native V2 sources/citations card (sendRichLinks) ────
+      const sources = [];
+      for (const entry of entries) {
+        for (const url of entry.sourceUrls || []) {
+          if (url && !sources.some(s => s.url === url)) {
+            sources.push({ title: `Dictionary entry — ${(entry.word || word).toUpperCase()}`, url });
+          }
+        }
+      }
+      if (capabilities.richResponse && sources.length >= 2) {
+        try {
+          await baileysBridge.sendRichLinks(sock, m.from, {
+            text: `📖 Sources for "${word}"`,
+            links: sources.slice(0, 6),
+            footer: `NEXORA • Dictionary • Rich Citations V2`,
+          }, { quoted: m });
+        } catch (err) {
+          console.warn('[define] sources card failed:', err.message);
         }
       }
 
