@@ -37,6 +37,7 @@ export const MAJOR_COMMANDS = [
   'rank', 'profile', 'balance', 'daily', 'work', 'shop',
   'slots', 'duel', 'gacha', 'leaderboard', 'transfer',
   'wiki', 'play', 'ai', 'define', 'calc', 'owner',
+  'check', 'checkwa',
 ];
 
 export function attachBot(instance) { bot = instance; }
