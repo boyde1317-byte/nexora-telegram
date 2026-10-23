@@ -39,6 +39,7 @@ export const MAJOR_COMMANDS = [
   'wiki', 'play', 'ai', 'define', 'calc', 'owner',
   'check', 'checkwa',
   'simi', 'muslimai', 'feelbetter', 'tts', 'transkrip', 'primbon',
+  'tempnumber',
 ];
 
 export function attachBot(instance) { bot = instance; }
