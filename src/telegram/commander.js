@@ -38,6 +38,7 @@ export const MAJOR_COMMANDS = [
   'slots', 'duel', 'gacha', 'leaderboard', 'transfer',
   'wiki', 'play', 'ai', 'define', 'calc', 'owner',
   'check', 'checkwa',
+  'simi', 'muslimai', 'feelbetter', 'tts', 'transkrip', 'primbon',
 ];
 
 export function attachBot(instance) { bot = instance; }
