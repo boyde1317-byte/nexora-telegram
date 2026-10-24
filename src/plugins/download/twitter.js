@@ -7,6 +7,10 @@
  *  - Copy + open + cross-platform follow-up card
  */
 import { withReactionStatus} from '../../lib/cosmetics.js';
+import { baileysBridge } from '../../core/baileysBridge.js';
+import capabilities from '../../core/capabilities.js';
+import { ASSET_URLS } from '../../assets/assetUrls.js';
+import brand from '../../../config/brand.js';
 
 import { twitterDownload, isUrl} from '../../lib/downloader.js';
 import { DownloadProgress} from '../../lib/progress.js';
@@ -34,6 +38,35 @@ export default {
         const data = await twitterDownload(url);
         await progress.done('✅ Got it! Sending video...');
 
+        const title = (data.title || 'X / Twitter Video').slice(0, 60);
+
+        // ── Rich tier: 🎬 inline video + stats table (.testrich
+        //    "v2vidtable" pattern, device-verified) — native reel player
+        //    with a stats table beneath it in one card. ──
+        if (capabilities.richResponse) {
+          try {
+            await baileysBridge.sendInlineVideoStats(sock, m.from, {
+              video: {
+                title:        title,
+                thumbnailUrl: ASSET_URLS.thumbnail,
+                videoUrl:     data.url,
+              },
+              tableHeaders: ['Metric', 'Value'],
+              tableRows: [
+                ['Source', 'X / Twitter'],
+                ['Title',  title.slice(0, 28)],
+                ['Type',   'Video (original)'],
+              ],
+              headerText: '🎬 X / Twitter Video',
+              footer: brand.copyright || `© ${brand.name}`,
+            }, { quoted: m });
+            return;
+          } catch (err) {
+            console.warn('[twitter] inline video stats failed, plain fallback:', err.message);
+          }
+        }
+
+        // ── Fallback: classic playable video attachment ─────────────────
         await sock.sendMessage(m.from, {
           video:   { url: data.url },
           caption: data.title ? `🎬 *${data.title}*` : '🎬 X / Twitter Video',

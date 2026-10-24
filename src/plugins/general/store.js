@@ -18,6 +18,9 @@
  */
 
 import { Button } from '../../lib/moonsonKit.js';
+import { nativeCarouselCard } from '../../lib/interactiveKit.js';
+import capabilities from '../../core/capabilities.js';
+import { ASSET_URLS } from '../../assets/assetUrls.js';
 import brand from '../../../config/brand.js';
 import owner from '../../../config/owner.js';
 import { toSmallcaps } from '../../lib/smallcaps.js';
@@ -101,6 +104,31 @@ export default {
       card.addReply(`⚡ ${toSmallcaps('System Info')}`, `${p}ping`);
       card.addReply(`📋 ${toSmallcaps('Main Menu')}`, `${p}menu`);
       card.addUrl(`💬 ${toSmallcaps('Order Now')}`, `https://wa.me/${phone}`);
+
+      // ── Rich tier: native plan carousel (.testrich "carousel" pattern,
+      //    device-verified in v0.3.18-r14) — one card per plan, tap to order.
+      //    The moonsonKit Button card below stays as the fallback. ──
+      if (capabilities.nativeFlow) {
+        try {
+          const cards = plans.map((plan, i) => ({
+            image: { url: ASSET_URLS.menuBanner },
+            caption:
+              `*${plan.ram} RAM Server*\n\n` +
+              `💰 ${plan.price} GHS / month\n\n` +
+              `» Full Root Access\n» 24/7 Uptime\n» Free SSL\n» Dedicated IP\n» Instant Setup`,
+            footer: `Plan ${i + 1} of ${plans.length}`,
+            nativeFlow: [{ text: '🛒 Order This Plan', id: `${p}order ${String(plan.ram).toLowerCase()}` }],
+          }));
+          await nativeCarouselCard(sock, m.from, {
+            cards,
+            text: `🖥️ ${brand.name} Server Store — swipe through the plans`,
+            footer: brand.copyright || `© ${brand.name}`,
+          }, { quoted: m });
+          return;
+        } catch (err) {
+          console.warn('[store] native carousel failed, falling back to button card:', err.message);
+        }
+      }
 
       await card.send(m.from, { quoted: m });
     } catch (err) {
