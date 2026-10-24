@@ -295,7 +295,12 @@ httpServer = app.listen(PORT, HOST, async () => {
     const { initThumbnail } = await import('./src/lib/enrichContext.js');
     await initThumbnail();
     await client.loadPlugins();
-    await connectToWhatsApp();
+
+    if (config.botEnabled) {
+      await connectToWhatsApp();
+    } else {
+      console.log('[STARTUP] BOT_ENABLED=false — WhatsApp connection skipped. Web surfaces stay up; set BOT_ENABLED=true to bring the bot back.');
+    }
 
     // Automatic database backups — 24h snapshots, 7-day retention
     try {
@@ -316,12 +321,15 @@ httpServer = app.listen(PORT, HOST, async () => {
       console.warn('[STARTUP] Reminder service failed to start:', err.message || err);
     }
 
-    // Reconnect any saved extra sessions (.pair-linked numbers)
-    try {
-      const { resumeExtraSessions } = await import('./src/core/sessionManager.js');
-      await resumeExtraSessions();
-    } catch (err) {
-      console.warn('[STARTUP] Extra-session resume failed:', err.message || err);
+    // Reconnect any saved extra sessions (.pair-linked numbers) — skipped
+    // while the bot is paused (BOT_ENABLED=false).
+    if (config.botEnabled) {
+      try {
+        const { resumeExtraSessions } = await import('./src/core/sessionManager.js');
+        await resumeExtraSessions();
+      } catch (err) {
+        console.warn('[STARTUP] Extra-session resume failed:', err.message || err);
+      }
     }
 
     // ── Telegram control panel (NEXORA Telegram port) ───────────────────

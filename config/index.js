@@ -126,6 +126,11 @@ const rawConfig = {
   sessionPath: process.env.SESSION_PATH || './session',
 
   // ── Connection settings ───────────────────────────────────────────────────
+  //
+  // BOT_ENABLED=false pauses the WhatsApp side while the web surfaces keep
+  // serving: no socket, no pairing codes, no extra-session resume at boot.
+  // Set it back to true to bring the bot online again.
+  botEnabled: parseBool(process.env.BOT_ENABLED, true),
   reconnectLimit: parseInt(process.env.RECONNECT_LIMIT, 0), // 0 = unlimited
   connectTimeoutMs: parseInt(process.env.CONNECT_TIMEOUT, 60000),
   keepAliveIntervalMs: parseInt(process.env.KEEPALIVE_INTERVAL, 30000),
