@@ -497,7 +497,7 @@ export async function serialize(rawMessage, sock) {
   // ── Reply helper ──────────────────────────────────────────────────────────
   // Automatically attaches an externalAdReply preview card (link-preview
   // banner with bot logo + source URL) to every text-only reply, controlled
-  // by config.features.adReplyCards (default: true).
+  // by config.features.adReplyCards (default: false).
   //
   // Callers can still override by passing their own contextInfo:
   //   m.reply(text)                                    // auto-attaches ad-reply card
@@ -512,7 +512,7 @@ export async function serialize(rawMessage, sock) {
     //   2. Caller didn't pass their own contextInfo
     //   3. Caller didn't explicitly skip it
     let finalContextInfo = contextInfo;
-    if (!finalContextInfo && !skipAdReply && config.features?.adReplyCards !== false) {
+    if (!finalContextInfo && !skipAdReply && config.features?.adReplyCards === true) {
       try {
         finalContextInfo = await buildEnrichedContextInfo();
       } catch (_) {

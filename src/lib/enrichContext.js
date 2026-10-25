@@ -124,7 +124,7 @@ export async function buildEnrichedContextInfo({
   }
 
   // 2. externalAdReply thumbnail banner (gated on feature flag)
-  if (config.features?.adReplyCards !== false) {
+  if (config.features?.adReplyCards === true) {
     const adConfig = config.adReply || {};
     const finalThumbnailUrl = thumbnailUrl || adConfig.thumbnailUrl || ASSET_URLS.thumbnail;
 

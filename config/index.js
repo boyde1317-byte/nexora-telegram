@@ -193,8 +193,9 @@ const rawConfig = {
     // When enabled, every m.reply(text) call automatically gets a contextInfo
     // with an externalAdReply banner (bot logo + source URL link-preview card)
     // attached — no need for each plugin to pass contextInfo manually.
-    // Set AD_REPLY_CARDS=false in .env to disable.
-    adReplyCards: parseBool(process.env.AD_REPLY_CARDS, true),
+    // Default: OFF — replies are clean text with the contact-card quote.
+    // Set AD_REPLY_CARDS=true in .env to re-enable the banner cards.
+    adReplyCards: parseBool(process.env.AD_REPLY_CARDS, false),
   },
 
   // ── externalAdReply card appearance ──────────────────────────────────────
