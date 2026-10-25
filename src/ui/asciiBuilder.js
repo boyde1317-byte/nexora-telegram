@@ -9,34 +9,42 @@ import { toSmallcaps } from '../lib/smallcaps.js';
  * Enhanced with panels, stat rows, progress bars, and visual dividers
  * for richer in-chat info cards.
  */
+/**
+ * Menu-identity slim box — the same thin-walled card style the galaxy
+ * menu buttons and the startup credits use:
+ *
+ *   ╭─「 ᴛɪᴛʟᴇ 」
+ *   │ line
+ *   ╰────────────────────────╯
+ *
+ * This is THE reply framing style; the thick ━━━ panel look was retired
+ * per owner direction. Blank lines render as a bare wall (credits card
+ * style).
+ */
+const slimBox = (title, lines = [], opts = {}) => {
+  const accent = opts.accent || '';
+  const label = title ? `${accent} ${toSmallcaps(title)} ${accent}`.trim() : '';
+  const out = [];
+  out.push(title ? `╭─「 ${label} 」` : '╭────────────────────────╮');
+  for (const line of lines) {
+    const s = String(line);
+    out.push(s.trim().length ? `│ ${s}` : '│');
+  }
+  out.push('╰────────────────────────╯');
+  return out.join('\n');
+};
+
 export const asciiBuilder = {
   box(title, lines = []) {
-    const formatted = [];
-    if (title) {
-      formatted.push(`✦ *${toSmallcaps(title)}* ✦\n`);
-    }
-    lines.forEach(line => formatted.push(line));
-    return formatted.join('\n');
+    return slimBox(title, lines);
   },
 
   list(title, items = []) {
-    const formatted = [];
-    if (title) {
-      formatted.push(`✦ *${toSmallcaps(title)}* ✦\n`);
-    }
-    items.forEach(item => formatted.push(`✦ ${item}`));
-    formatted.push('');
-    formatted.push('❖');
-    return formatted.join('\n');
+    return slimBox(title, items.map((item) => `✦ ${item}`));
   },
 
   card(title, entries = []) {
-    const formatted = [];
-    if (title) {
-      formatted.push(`✦ *${toSmallcaps(title)}* ✦\n`);
-    }
-    entries.forEach(entry => formatted.push(`• ${entry}`));
-    return formatted.join('\n');
+    return slimBox(title, entries.map((entry) => `• ${entry}`));
   },
 
   /**
@@ -50,15 +58,7 @@ export const asciiBuilder = {
    * @returns {string}
    */
   panel(title, lines = [], opts = {}) {
-    const accent = opts.accent || '✦';
-    const formatted = [];
-    if (title) {
-      formatted.push(`${accent} *${toSmallcaps(title)}* ${accent}`);
-      formatted.push('━━━━━━━━━━━━━━━━━━━━━━');
-    }
-    lines.forEach(line => formatted.push(line));
-    formatted.push('━━━━━━━━━━━━━━━━━━━━━━');
-    return formatted.join('\n');
+    return slimBox(title, lines, opts);
   },
 
   /**
@@ -81,11 +81,12 @@ export const asciiBuilder = {
     if (typeof text !== 'string') return text;
     const trimmed = text.trim();
     if (trimmed.length < minLength) return text;
-    // Already styled: panel dividers or an asciiBuilder ✦ title header
-    if (trimmed.includes('━━━━') || trimmed.startsWith('✦ *')) return text;
-    const DIV = '━━━━━━━━━━━━━━━━━━━━━━';
-    const head = title ? `✦ *${toSmallcaps(title)}* ✦\n${DIV}\n` : `${DIV}\n`;
-    return `${head}${trimmed}\n${DIV}`;
+    // Already styled: slim box frames, thick panel dividers, or a
+    // ✦/✶ smallcaps title header — never double-frame.
+    if (/[╭┌]/.test(trimmed) || trimmed.includes('━━━━') || trimmed.startsWith('✦ *') || trimmed.startsWith('✶ *')) {
+      return text;
+    }
+    return slimBox(title, trimmed.split('\n'));
   },
 
   /**
@@ -152,16 +153,7 @@ export const asciiBuilder = {
       formatted.push('');
     }
     for (const section of sections) {
-      if (section.heading) {
-        formatted.push(`\u250C\u2500 *${toSmallcaps(section.heading)}*`);
-        formatted.push('\u2502');
-      }
-      for (const line of (section.lines || [])) {
-        formatted.push(`\u2502 ${line}`);
-      }
-      if (section.heading) {
-        formatted.push('\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
-      }
+      formatted.push(slimBox(section.heading || '', section.lines || []));
       formatted.push('');
     }
     return formatted.join('\n').trimEnd();
