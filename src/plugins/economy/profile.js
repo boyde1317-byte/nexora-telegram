@@ -62,7 +62,7 @@ export function profileCard({ label, number, username, d, isSelf }) {
 
 export default {
   name: 'profile',
-  aliases: ['prof', 'rank', 'level', 'me'],
+  aliases: ['prof', 'me'], // 'rank'/'level' reserved for the rank card
   category: 'economy',
   description: 'Shows your profile — level, XP, coins, streak and rank. Reply to someone or @ them to view theirs.',
   cooldown: 4000,

@@ -9,7 +9,7 @@ import { copyResultCard } from '../../lib/interactiveKit.js';
 
 export default {
   name: 'paste',
-  aliases: ['pastebin', 'hastebin', 'upload'],
+  aliases: ['hastebin', 'upload'], // 'pastebin' reserved for the pastebin.com plugin
   category: 'utility',
   description: 'Uploads text to paste.rs and returns a shareable link. Reply to a text message or type directly.',
   cooldown: 5000,

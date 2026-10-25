@@ -25,7 +25,7 @@ function verdict(pct) {
 
 export default {
   name: 'love',
-  aliases: ['ship', 'lovemeter', 'compatibility', 'match'],
+  aliases: ['lovemeter', 'match'], // 'ship'/'compatibility' reserved for the ship calculator
   category: 'fun',
   description: 'Checks love compatibility between two names or two mentions. Results are consistent for the same pair.',
   cooldown: 3000,

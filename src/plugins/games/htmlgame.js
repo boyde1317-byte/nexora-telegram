@@ -15,7 +15,7 @@ import { HTML_GAMES, sendHtmlGame } from '../../lib/htmlGames.js';
 
 export default {
   name: 'game',
-  aliases: ['htmlgame', 'play'],
+  aliases: ['htmlgame'], // 'play' reserved for the YouTube music downloader
   category: 'games',
   description: '🎮 In-chat HTML5 games. Usage: .game [dino/chess/mbim/plane/ttc/calc/monitor]',
   cooldown: 5000,

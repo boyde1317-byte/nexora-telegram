@@ -23,7 +23,7 @@ import { checkNumber, BAN_STATUS_TEXT, TOKENLESS_UA } from '../../lib/bancheck.j
 
 export default {
   name: 'check',
-  aliases: ['checkwa', 'wa'],
+  aliases: ['wa'], // 'checkwa' reserved for the owner ban-status plugin
   category: 'utility',
   description: 'Check whether a number is on WhatsApp, banned, or never registered. Usage: .check <number> (or reply / @mention)',
   cooldown: 15000,

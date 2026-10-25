@@ -7,18 +7,18 @@
  * reply when the device can't render rich responses.
  *
  * Usage:
- *   .math x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}
- *   .math \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
- *   .math E=mc^2
+ *   .latex x=\frac{-b\pm\sqrt{b^2-4ac}}{2a}
+ *   .latex \int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
+ *   .latex E=mc^2
  */
 import capabilities from '../../core/capabilities.js';
 import { baileysBridge } from '../../core/baileysBridge.js';
 
 export default {
-  name: 'math',
-  aliases: ['latex', 'tex'],
+  name: 'latex', // '.math' reserved for the AI step-by-step solver
+  aliases: ['tex'],
   category: 'utility',
-  description: '📐 Renders LaTeX as a native math card. Usage: .math <latex expression>',
+  description: '📐 Renders LaTeX as a native math card. Usage: .latex <latex expression>',
   cooldown: 5000,
 
   execute: async ({ m, sock, args, prefix }) => {

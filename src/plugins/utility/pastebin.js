@@ -47,7 +47,7 @@ async function readPaste(link) {
 
 export default {
   name: 'pastebin',
-  aliases: ['getpaste', 'paste'],
+  aliases: ['getpaste'], // 'paste' reserved for the paste.rs uploader
   category: 'utility',
   description: '📋 Share long text/code via pastebin. Usage: .pastebin <text> / .getpaste <url>',
   cooldown: 8000,
