@@ -6,6 +6,7 @@ import { aiQuoted } from '../lib/aiQuote.js';
 import { db } from '../database/db.js';
 import { withChannelPill } from '../lib/menuContext.js';
 import { buildEnrichedContextInfo } from '../lib/enrichContext.js';
+import { asciiBuilder } from '../ui/asciiBuilder.js';
 
 /**
  * Extracts the body text from a raw message content object.
@@ -548,6 +549,16 @@ export async function serialize(rawMessage, sock) {
     replyFn(messageFormatter.info(text, title), options);
   replyFn.loading = async (text = 'Processing...', options = {}) =>
     replyFn(messageFormatter.loading(text), options);
+
+  // ── Boxed reply ───────────────────────────────────────────────────────────
+  // Menu-identity panel (✦ smallcaps title + dividers, same visual system
+  // the menus use) for structured stat/info replies. No ad banner — it
+  // routes through the plain replyFn, so the contact-card quote strip and
+  // channel pill are preserved.
+  //
+  //   await m.reply.box('DAILY REWARD', [ asciiBuilder.statRow('Coins', 500) ])
+  replyFn.box = async (title, lines = [], options = {}) =>
+    replyFn(asciiBuilder.panel(title || '', Array.isArray(lines) ? lines : [lines]), options);
 
   message.reply = replyFn;
 

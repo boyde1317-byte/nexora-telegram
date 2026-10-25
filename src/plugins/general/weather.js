@@ -8,6 +8,7 @@
  */
 
 import { geocodeFrom } from './locate.js';
+import { asciiBuilder } from '../../ui/asciiBuilder.js';
 import { sendRealLocationCard } from '../../lib/richMap.js';
 import { sendAIRichReply } from '../../lib/aiRichReply.js';
 
@@ -115,8 +116,14 @@ export default {
       const richSent = await sendAIRichReply(sock, m.from, m, { markdown, footer: 'NEXORA • Open-Meteo' });
       if (richSent) return;
 
-      // ── Tier 3: plain text ──
-      await m.reply.info(`${markdown.replace(/\|/g, ' | ').replace(/\n\s+\|\s+---.*\n/, '\n')}`, 'NEXORA • Weather');
+      // ── Tier 3: menu-identity box ──
+      await m.reply.box(`${city} ${curEmoji}`, [
+        asciiBuilder.statRow('Now', `${Math.round(cur.temperature_2m)}°C (feels ${Math.round(cur.apparent_temperature)}°C)`),
+        asciiBuilder.statRow('Humidity', `${cur.relative_humidity_2m}%`),
+        asciiBuilder.statRow('Wind', `${Math.round(cur.wind_speed_10m)} km/h`),
+        '',
+        ...rows.map((r) => `${r[0]}: ${r[1]} • ${r[2]} • Rain ${r[3]}`),
+      ]);
     } catch (err) {
       await m.reply.error(`Weather failed: ${err.message}`);
     }

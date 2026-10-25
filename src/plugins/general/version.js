@@ -8,6 +8,7 @@ import brand from '../../../config/brand.js';
 
 
 import { richTableCard} from '../../lib/interactiveKit.js';
+import { asciiBuilder } from '../../ui/asciiBuilder.js';
 import client from '../../core/client.js';
 
 export default {
@@ -42,16 +43,13 @@ export default {
       console.warn('[version] Tier 1 failed:', err.message);
     }
 
-    // ── Tier 2: plain text fallback ───────────────────────────────────────
-    const text = [
-      `╭─ VERSION`,
-      `│ Bot: ${brand.name}`,
-      `│ Developer: ${brand.creator}`,
-      `│ Core: v${brand.version}`,
-      `│ Runtime: Node.js ${process.version}`,
-      `╰─ ${brand.signature}`,
-    ].join('\n');
-
-    await m.reply(text);
+    // ── Tier 2: menu-identity box fallback ────────────────────────────────
+    await m.reply.box('VERSION INFO', [
+      asciiBuilder.statRow('Bot', brand.name),
+      asciiBuilder.statRow('Developer', brand.creator),
+      asciiBuilder.statRow('Core', `v${brand.version}`),
+      asciiBuilder.statRow('Runtime', `Node.js ${process.version}`),
+      asciiBuilder.statRow('Commands', String(totalCmds)),
+    ]);
   }
 };
