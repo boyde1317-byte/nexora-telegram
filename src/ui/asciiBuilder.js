@@ -62,6 +62,33 @@ export const asciiBuilder = {
   },
 
   /**
+   * Auto-frames a raw reply in the menu-identity box. Used by the
+   * serializer so every non-trivial reply carries the box identity,
+   * without touching each plugin.
+   *
+   * Skips framing when:
+   *   - the text is not a string
+   *   - it's too small (below `minLength` — short confirmations stay plain)
+   *   - it already contains panel dividers (menus, stat panels, .box calls)
+   *
+   * @param {string} text
+   * @param {object} [opts]
+   * @param {number} [opts.minLength=100] Replies shorter than this stay plain
+   * @param {string} [opts.title='']   Optional ✦ smallcaps header (command name)
+   * @returns {string}
+   */
+  autoBox(text, { minLength = 100, title = '' } = {}) {
+    if (typeof text !== 'string') return text;
+    const trimmed = text.trim();
+    if (trimmed.length < minLength) return text;
+    // Already styled: panel dividers or an asciiBuilder ✦ title header
+    if (trimmed.includes('━━━━') || trimmed.startsWith('✦ *')) return text;
+    const DIV = '━━━━━━━━━━━━━━━━━━━━━━';
+    const head = title ? `✦ *${toSmallcaps(title)}* ✦\n${DIV}\n` : `${DIV}\n`;
+    return `${head}${trimmed}\n${DIV}`;
+  },
+
+  /**
    * Builds a stat row with a label and value, aligned visually.
    *
    * @param {string} label

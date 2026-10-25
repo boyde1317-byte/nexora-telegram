@@ -515,6 +515,7 @@ try {
       const command = client.commands.get(resolvedName);
       if (command) {
         try {
+          m._activeCommand = command.name;
           await command.execute({
             m, sock, jid, sender,
             args: [], body: '', prefix: '',
@@ -749,6 +750,7 @@ try {
   } catch (_) {}
 
   const _replyCountBefore = m._replyCount || 0;
+  m._activeCommand = command.name;
   try {
     await command.execute(ctx);
     try { client.recordExecution(command.name, false); } catch (_) {}

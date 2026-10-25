@@ -508,6 +508,15 @@ export async function serialize(rawMessage, sock) {
     const { contextInfo, skipAdReply, skipPill, ...sendOptions } = options;
     message._replyCount = (message._replyCount || 0) + 1;
 
+    // ── Auto-box: frame every non-trivial reply in the menu identity ──
+    // Replies that are too small stay plain, and already-styled text
+    // (panel dividers present — menus, stat cards, explicit .box calls)
+    // is never double-framed. The active command name becomes the box
+    // header, so each framed reply carries a ✦ smallcaps title.
+    if (typeof text === 'string') {
+      text = asciiBuilder.autoBox(text, { title: message._activeCommand || '' });
+    }
+
     // Auto-attach externalAdReply card when:
     //   1. Feature flag is enabled
     //   2. Caller didn't pass their own contextInfo

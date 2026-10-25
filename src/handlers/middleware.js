@@ -414,6 +414,7 @@ export async function executePipeline(context) {
             await ctx.sock?.sendPresenceUpdate('composing', ctx.jid).catch(() => {});
           } catch (_) {}
 
+          if (ctx.m) ctx.m._activeCommand = ctx.command.name;
           await ctx.command.execute(ctx);
 
           // Track command usage statistics
