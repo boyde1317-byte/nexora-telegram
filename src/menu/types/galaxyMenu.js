@@ -13,6 +13,7 @@ import { getChannelPill } from '../../lib/menuContext.js';
  *   - zero-width body + ASCII info footer
  *   - channel-forwarded pill contextInfo (forwardingScore 97410)
  *   - messageParamsJson galaxy bar (limited_time_offer) + bottom_sheet
+ *     + tap_target_configuration first-open tutorial callout (XERODEATH port)
  *   - ~20-button nativeFlow stack unlocked by the has_multiple_buttons
  *     opener pair (single_select + call_permission_request)
  *   - decorative galaxy_message lines framing functional buttons
@@ -153,7 +154,7 @@ export const galaxyMenu = {
       })),
     };
 
-    // ── The galaxy bar + bottom sheet (messageParamsJson) ──
+    // ── The galaxy bar + bottom sheet + tap target (messageParamsJson) ──
     const messageParamsJson = JSON.stringify({
       limited_time_offer: {
         text: `⟅̊ ▾⿻ ${fancy(brand.name)} ⿻ ▾ ⟆̊`,
@@ -166,6 +167,13 @@ export const galaxyMenu = {
         divider_indices: [1, 2, 3, 4, 5, 999],
         list_title: `⭑̤⟅̊༑ ▾⿻ ${fancy(brand.name)} ⿻ ▾ ༑̴⟆̊⭑̤`,
         button_title: ' ',
+      },
+      tap_target_configuration: {
+        title: ` ${fancy(brand.name)} `,
+        description: 'Tap the buttons below to explore every command',
+        canonical_url: CHANNEL_URL,
+        domain: 'whatsapp.com',
+        button_index: 0,
       },
     });
 
