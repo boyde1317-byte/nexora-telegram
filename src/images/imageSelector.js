@@ -3,7 +3,7 @@ import path from 'node:path';
 import { imageConfig } from './imageConfig.js';
 import { assetManager } from '../assets/assetManager.js';
 
-const FALLBACK_IMAGE_PATH = 'https://media.base44.com/images/public/6a6ffc9ec8a196324ba9ee95/ff8504867_generated_image.png';
+const FALLBACK_IMAGE_PATH = 'https://base44.app/api/apps/6ade37ff324c88533b16f8d8/files/mp/public/6ade37ff324c88533b16f8d8/c4ad5ea19_nexora-brand-banner.png';
 
 export const imageSelector = {
   /**

@@ -25,7 +25,7 @@ export const ASSET_URLS = {
 
   // Wide menu banner — 16:9, used by all menu styles that need a header image
   menuBanner:
-    'https://media.base44.com/images/public/6a6ffc9ec8a196324ba9ee95/ff8504867_generated_image.png',
+    'https://base44.app/api/apps/6ade37ff324c88533b16f8d8/files/mp/public/6ade37ff324c88533b16f8d8/c4ad5ea19_nexora-brand-banner.png',
 
   // Welcome greeting image — 16:9, warm dawn forest scene
   welcome:
