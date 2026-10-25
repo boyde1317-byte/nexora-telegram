@@ -84,7 +84,7 @@ export const locationMenu = {
         renderLargerThumbnail: true,
       };
       if (imgData.buffer) {
-        adReply.thumbnail = imgData.buffer;
+        adReply.thumbnail = imgData.thumbBuffer;
       } else if (imgData.source?.startsWith('http')) {
         adReply.thumbnailUrl = imgData.source;
 
@@ -108,7 +108,7 @@ export const locationMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      fallbackAdReply.thumbnail = imgData.buffer;
+      fallbackAdReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       fallbackAdReply.thumbnailUrl = imgData.source;
       fallbackAdReply.originalImageUrl = imgData.source;

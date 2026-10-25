@@ -70,7 +70,7 @@ export const richCardMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      adReply.thumbnail = imgData.buffer;
+      adReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       adReply.thumbnailUrl = imgData.source;
       adReply.originalImageUrl = imgData.source;
@@ -155,7 +155,7 @@ export const richCardMenu = {
     }
 
     // ── Tier 5: guaranteed plain text + fake quote + banner ────────────────
-    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined });
+    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined });
     return await sock.sendMessage(m.from, {
       text:        `\u2726 *${toSmallcaps(menuData.botName + ' Command Matrix')}* \u2726\n\n` + buildTextMenu(menuData),
       contextInfo: { externalAdReply: adReply },

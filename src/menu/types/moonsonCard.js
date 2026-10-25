@@ -45,7 +45,7 @@ export const moonsonCardMenu = {
       .setContextInfo(buildAboutContextInfo({
         botName: menuData.botName,
         description: `${menuData.totalCommands} commands`,
-        thumbnail: imgData?.buffer,
+        thumbnail: imgData?.thumbBuffer,
       }));
 
     if (imgData?.buffer) {

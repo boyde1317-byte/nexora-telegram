@@ -300,14 +300,12 @@ export const galaxyMenu = {
     // renders as the "WhatsApp • Status" product card above the menu (title,
     // Quantity 1, price, thumbnail). NEXORA-branded with the glitch font.
     const GLITCH_NEXORA = '𝐍̸̋̋͡𝐄̶͢𝐗͠𝐎̶͢𝐑̶͠𝐀 ͢𝐌̸̋̋͡𝐃';
+    // Compressed JPEG preview — embedding the full multi-MB banner here
+    // made WhatsApp drop the whole viewOnceMessage (menu went silent).
     let thumbBytes = null;
     try {
       const { imageManager } = await import('../../images/imageManager.js');
-      const img = await imageManager.getMenuImage(19);
-      if (img?.buffer) thumbBytes = img.buffer;
-      else if (img?.source?.startsWith?.('http')) {
-        thumbBytes = Buffer.from(await (await fetch(img.source)).arrayBuffer());
-      }
+      thumbBytes = await imageManager.getMenuThumbnail(19);
     } catch {
       thumbBytes = null;
     }

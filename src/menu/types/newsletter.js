@@ -66,7 +66,7 @@ export const newsletterMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      adReply.thumbnail = imgData.buffer;
+      adReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       adReply.thumbnailUrl = imgData.source;
       adReply.originalImageUrl = imgData.source;
@@ -143,7 +143,7 @@ export const newsletterMenu = {
     }
 
     // ── Tier 4: Guaranteed plain text + banner ────────────────────────────
-    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData?.buffer || undefined });
+    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData?.thumbBuffer || undefined });
     return await sock.sendMessage(m.from, {
       text:        bodyText,
       contextInfo: { externalAdReply: adReply },

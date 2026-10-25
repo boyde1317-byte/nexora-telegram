@@ -62,7 +62,7 @@ export const bottomSheetMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      adReply.thumbnail = imgData.buffer;
+      adReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       adReply.thumbnailUrl = imgData.source;
       adReply.originalImageUrl = imgData.source;

@@ -91,6 +91,39 @@ export const imageBuilder = {
   },
 
   /**
+   * Compresses an image buffer into a small JPEG suitable for WhatsApp's
+   * byte-sized preview fields (jpegThumbnail / adReply.thumbnail).
+   *
+   * Those proto fields are meant for tiny previews (~32 KB max). Embedding
+   * a full-resolution multi-MB source makes WhatsApp silently drop the
+   * whole interactive message — the exact failure that broke the galaxy
+   * menu after the lossless banner swap. Falls back to the raw buffer
+   * only when it already fits, and to null when compression is impossible
+   * (callers then simply omit the thumbnail instead of killing the send).
+   */
+  async toJpegThumbnail(buffer, { width = 320, quality = 72, maxBytes = 32 * 1024 } = {}) {
+    if (!Buffer.isBuffer(buffer) || buffer.length === 0) return null;
+    if (buffer.length <= maxBytes) return buffer;
+    try {
+      const { default: sharp } = await import('sharp');
+      let w = width;
+      let q = quality;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const out = await sharp(buffer)
+          .resize({ width: w, withoutEnlargement: true })
+          .jpeg({ quality: q })
+          .toBuffer();
+        if (out.length <= maxBytes) return out;
+        w = Math.max(96, Math.round(w * 0.7));
+        q = Math.max(35, q - 12);
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Generates a tiny mock jpeg thumbnail to bypass WhatsApp upload constraints
    */
   getMockThumbnail() {

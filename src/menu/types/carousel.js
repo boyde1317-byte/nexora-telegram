@@ -130,7 +130,7 @@ export const carouselMenu = {
     }
 
     // ── Tier 3: guaranteed plain text + fake quote + banner ────────────────
-    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined });
+    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined });
     const fallbackAdReply = {
       title:                 `✦ ${toSmallcaps(menuData.botName)} ✦`,
       body:                  `${menuData.totalCommands} commands • Carousel`,
@@ -140,7 +140,7 @@ export const carouselMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      fallbackAdReply.thumbnail = imgData.buffer;
+      fallbackAdReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       fallbackAdReply.thumbnailUrl = imgData.source;
       fallbackAdReply.originalImageUrl = imgData.source;

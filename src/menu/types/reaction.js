@@ -26,7 +26,7 @@ export const reactionMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      adReply.thumbnail = imgData.buffer;
+      adReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       adReply.thumbnailUrl = imgData.source;
 
@@ -77,7 +77,7 @@ export const reactionMenu = {
     return await sock.sendMessage(m.from, {
       text: finalMenuText,
       ...(hasImage ? { contextInfo: { externalAdReply: adReply } } : {}),
-    }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined }) });
+    }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined }) });
   }
 };
 

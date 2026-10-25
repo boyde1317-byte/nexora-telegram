@@ -77,7 +77,7 @@ export const productMenu = {
         renderLargerThumbnail: true,
       };
       if (imgData.buffer) {
-        adReply.thumbnail = imgData.buffer;
+        adReply.thumbnail = imgData.thumbBuffer;
         return await sock.sendMessage(m.from, {
           image:       imgData.buffer,
           mimetype:    imgData.mimetype,
@@ -99,7 +99,7 @@ export const productMenu = {
     }
 
     // ── Tier 3: guaranteed plain text + fake quote + banner ───────────────
-    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined });
+    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined });
     const fallbackAdReply = {
       title:                 `✦ ${menuData.botName.toUpperCase()} ✦`,
       body:                  `${menuData.totalCommands} commands • ${menuData.uptime}`,
@@ -109,7 +109,7 @@ export const productMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      fallbackAdReply.thumbnail = imgData.buffer;
+      fallbackAdReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       fallbackAdReply.thumbnailUrl = imgData.source;
       fallbackAdReply.originalImageUrl = imgData.source;

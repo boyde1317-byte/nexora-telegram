@@ -108,7 +108,7 @@ export const buttonsCardMenu = {
         thumbnail = imgData.source;
       } else if (imgData?.buffer) {
         thumbnail = imgData.buffer;
-        thumbnailBuffer = imgData.buffer;
+        thumbnailBuffer = imgData.thumbBuffer;
       }
     } catch (_) {}
 

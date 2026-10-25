@@ -113,7 +113,7 @@ export const listFallbackMenu = {
     let fakeImgQuote, fallbackAdReply;
     try {
       const imgData = await imageManager.getMenuImage(16);
-      fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined });
+      fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined });
       fallbackAdReply = {
         title:                 `✦ ${brand.name} ✦`,
         body:                  `${menuData.totalCommands} commands • List Menu`,
@@ -123,7 +123,7 @@ export const listFallbackMenu = {
         showAdAttribution:     false,
       };
       if (imgData.buffer) {
-        fallbackAdReply.thumbnail = imgData.buffer;
+        fallbackAdReply.thumbnail = imgData.thumbBuffer;
       } else if (imgData.source?.startsWith('http')) {
         fallbackAdReply.thumbnailUrl = imgData.source;
         fallbackAdReply.originalImageUrl = imgData.source;

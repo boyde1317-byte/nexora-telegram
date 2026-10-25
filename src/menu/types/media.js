@@ -59,7 +59,7 @@ export const mediaMenu = {
       showAdAttribution:     true,
     };
     if (imgData.buffer) {
-      adReply.thumbnail = imgData.buffer;
+      adReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       adReply.thumbnailUrl = imgData.source;
       adReply.originalImageUrl = imgData.source;
@@ -109,7 +109,7 @@ export const mediaMenu = {
     return await sock.sendMessage(m.from, {
       text: caption,
       contextInfo: { externalAdReply: adReply },
-    }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined }) });
+    }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined }) });
   },
 };
 

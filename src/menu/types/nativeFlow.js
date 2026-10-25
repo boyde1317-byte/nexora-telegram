@@ -46,7 +46,7 @@ export const nativeFlowMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      adReply.thumbnail = imgData.buffer;
+      adReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       adReply.thumbnailUrl = imgData.source;
       adReply.originalImageUrl = imgData.source;
@@ -100,7 +100,7 @@ export const nativeFlowMenu = {
       return await sock.sendMessage(m.from, {
         text:        bodyText,
         contextInfo: { externalAdReply: adReply },
-      }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined }) });
+      }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined }) });
     } catch (err) {
       console.warn('[MENU nativeFlow] Tier 3 (adReply) failed, escalating to text:', err.message);
       throw err; // runWithFallback → plain text

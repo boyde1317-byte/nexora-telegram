@@ -10,6 +10,21 @@ const imageCache = new Map();
 
 export const imageManager = {
   /**
+   * Returns ONLY the compressed JPEG preview for a menu style — safe to
+   * embed in jpegThumbnail / adReply.thumbnail byte fields. Null when no
+   * usable thumbnail exists (callers should then omit the field).
+   */
+  async getMenuThumbnail(styleId) {
+    try {
+      const img = await this.getMenuImage(styleId);
+      if (img?.thumbBuffer) return img.thumbBuffer;
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  /**
    * Clears the memory cache for a specific style or globally
    */
   clearCache(styleId = null) {
@@ -43,10 +58,14 @@ export const imageManager = {
       }
 
       const thumbnail = imageBuilder.getMockThumbnail();
+      // Compressed JPEG preview for WhatsApp byte-sized fields — the full
+      // buffer is far too large for jpegThumbnail / adReply.thumbnail use.
+      const thumbBuffer = await imageBuilder.toJpegThumbnail(loaded.buffer);
       const payload = {
         buffer: loaded.buffer,
         mimetype: loaded.mimetype,
         thumbnail: thumbnail,
+        thumbBuffer: thumbBuffer,
         source: source
       };
 

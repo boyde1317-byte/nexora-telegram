@@ -57,7 +57,7 @@ export const paymentMenu = {
     }
 
     // ── Tier 2: Guaranteed plain text + fake quote + banner ───────────────
-    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData?.buffer || undefined });
+    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData?.thumbBuffer || undefined });
     const fallbackAdReply = {
       title:                 `✦ ${toSmallcaps(menuData.botName)} ✦`,
       body:                  `${menuData.totalCommands} commands • Payment Menu`,
@@ -67,7 +67,7 @@ export const paymentMenu = {
       showAdAttribution:     false,
     };
     if (imgData?.buffer) {
-      fallbackAdReply.thumbnail = imgData.buffer;
+      fallbackAdReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData?.source?.startsWith('http')) {
       fallbackAdReply.thumbnailUrl = imgData.source;
       fallbackAdReply.originalImageUrl = imgData.source;

@@ -70,7 +70,7 @@ export const eventMessageMenu = {
         renderLargerThumbnail: true,
       };
       if (imgData.buffer) {
-        adReply.thumbnail = imgData.thumbnail || imgData.buffer;
+        adReply.thumbnail = imgData.thumbBuffer || imgData.thumbnail;
         return await sock.sendMessage(m.from, {
           image:       imgData.buffer,
           mimetype:    imgData.mimetype,
@@ -92,7 +92,7 @@ export const eventMessageMenu = {
     }
 
     // ── Tier 3: Guaranteed plain text + fake quote + banner ────────────────
-    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined });
+    const fakeImgQuote = buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined });
     const fallbackAdReply = {
       title:                 `✦ ${toSmallcaps(menuData.botName)} ✦`,
       body:                  `${menuData.totalCommands} commands • Event Menu`,
@@ -102,7 +102,7 @@ export const eventMessageMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      fallbackAdReply.thumbnail = imgData.buffer;
+      fallbackAdReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       fallbackAdReply.thumbnailUrl = imgData.source;
       fallbackAdReply.originalImageUrl = imgData.source;

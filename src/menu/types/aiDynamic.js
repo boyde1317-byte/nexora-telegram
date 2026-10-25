@@ -136,7 +136,7 @@ export const aiDynamicMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      adReply.thumbnail = imgData.buffer;
+      adReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       adReply.thumbnailUrl = imgData.source;
       adReply.originalImageUrl = imgData.source;
@@ -187,7 +187,7 @@ export const aiDynamicMenu = {
       text,
       mentions:    m.isGroup ? [m.sender] : [],
       contextInfo: { externalAdReply: adReply, ...(menuData.channelPill || {}) },
-    }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.buffer || undefined }) });
+    }, { quoted: buildFakeImageQuote({ jpegThumbnail: imgData.thumbBuffer || undefined }) });
   }
 };
 

@@ -89,7 +89,7 @@ export const contactMenu = {
         renderLargerThumbnail: true,
       };
       if (imgData.buffer) {
-        adReply.thumbnail = imgData.buffer;
+        adReply.thumbnail = imgData.thumbBuffer;
       } else if (imgData.source?.startsWith('http')) {
         adReply.thumbnailUrl = imgData.source;
 
@@ -113,7 +113,7 @@ export const contactMenu = {
       showAdAttribution:     false,
     };
     if (imgData.buffer) {
-      fallbackAdReply.thumbnail = imgData.buffer;
+      fallbackAdReply.thumbnail = imgData.thumbBuffer;
     } else if (imgData.source?.startsWith('http')) {
       fallbackAdReply.thumbnailUrl = imgData.source;
       fallbackAdReply.originalImageUrl = imgData.source;
