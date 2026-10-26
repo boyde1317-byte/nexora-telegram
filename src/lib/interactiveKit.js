@@ -81,7 +81,7 @@ const cap = (arr) => arr.slice(0, 10);
  * force a real quote by passing one whose key they control; personas always
  * win here so the card UI stays consistent with m.reply.
  */
-const personaQuoted = (opts = {}) => (opts.quoted ? { ...opts, quoted: aiQuoted(opts.quoted) } : opts);
+const personaQuoted = (opts = {}) => (opts.quoted ? { ...opts, quoted: aiQuoted(opts.quoted, 'card') } : opts);
 
 /**
  * Smart dispatch — tries nativeFlow first, then plain text.

@@ -505,7 +505,7 @@ export async function serialize(rawMessage, sock) {
   //   m.reply(text, { contextInfo: customContextInfo }) // uses caller's contextInfo
   //   m.reply(text, { skipAdReply: true })               // force-skip the card
   const replyFn = async (text, options = {}) => {
-    const { contextInfo, skipAdReply, skipPill, ...sendOptions } = options;
+    const { contextInfo, skipAdReply, skipPill, _quoteKind, ...sendOptions } = options;
     message._replyCount = (message._replyCount || 0) + 1;
 
     // ── Auto-box: frame every non-trivial reply in the menu identity ──
@@ -544,20 +544,20 @@ export async function serialize(rawMessage, sock) {
     return await sock.sendMessage(
       message.from,
       { text, ...(finalContextInfo ? { contextInfo: finalContextInfo } : {}) },
-      { quoted: aiQuoted(message), ...sendOptions }
+      { quoted: aiQuoted(message, _quoteKind || 'default'), ...sendOptions }
     );
   };
 
   replyFn.success = async (text, options = {}) =>
-    replyFn(messageFormatter.success(text), options);
+    replyFn(messageFormatter.success(text), { _quoteKind: 'success', ...options });
   replyFn.error   = async (text, options = {}) =>
-    replyFn(messageFormatter.error(text), options);
+    replyFn(messageFormatter.error(text), { _quoteKind: 'error', ...options });
   replyFn.warn    = async (text, options = {}) =>
-    replyFn(messageFormatter.warn(text), options);
+    replyFn(messageFormatter.warn(text), { _quoteKind: 'warn', ...options });
   replyFn.info    = async (text, title = 'INFO', options = {}) =>
-    replyFn(messageFormatter.info(text, title), options);
+    replyFn(messageFormatter.info(text, title), { _quoteKind: 'info', ...options });
   replyFn.loading = async (text = 'Processing...', options = {}) =>
-    replyFn(messageFormatter.loading(text), options);
+    replyFn(messageFormatter.loading(text), { _quoteKind: 'loading', ...options });
 
   // ── Boxed reply ───────────────────────────────────────────────────────────
   // Menu-identity panel (✦ smallcaps title + dividers, same visual system
@@ -567,7 +567,7 @@ export async function serialize(rawMessage, sock) {
   //
   //   await m.reply.box('DAILY REWARD', [ asciiBuilder.statRow('Coins', 500) ])
   replyFn.box = async (title, lines = [], options = {}) =>
-    replyFn(asciiBuilder.panel(title || '', Array.isArray(lines) ? lines : [lines]), options);
+    replyFn(asciiBuilder.panel(title || '', Array.isArray(lines) ? lines : [lines]), { _quoteKind: 'box', ...options });
 
   message.reply = replyFn;
 
