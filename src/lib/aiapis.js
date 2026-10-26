@@ -8,20 +8,9 @@
  *  - www.muslimai.io/api/chat         → Islamic AI with Quran/Hadith sources
  *  - feelbetterbot.com/               → empathetic "healing" chat (streamed)
  */
-const SIMI_API = 'https://api.nexray.eu.cc/ai/simisimi?text=';
 const MUSLIMAI_API = 'https://www.muslimai.io/api/chat';
 
 /** SimiSimi chat — returns a short sassy reply. */
-export async function simiChat(text) {
-  const res = await fetch(SIMI_API + encodeURIComponent(text), {
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) throw new Error(`simisimi HTTP ${res.status}`);
-  const data = await res.json();
-  if (data.status !== true) throw new Error(data.error || 'simisimi refused');
-  return data.result;
-}
-
 /** Islamic AI chat — returns { reply, sources[] }. Server is slow and
  * streams NDJSON ({"type":"sources",...} then {"type":"text","data":"W"...}
  * tokens); one retry on failure. */
