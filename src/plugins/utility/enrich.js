@@ -20,6 +20,12 @@
  *      📋 Copy card (tap-to-copy button)
  *      🔘 Buttons card (action + copy buttons)
  *      🧵 Quote strip (self-attributed contact quote)
+ *
+ *   Quote styles (cosmetic synthetic quotes — waUtils.js builders)
+ *   ── 📢 Newsletter, 🧾 Order, 🎵 Voice note, 📍 Live location,
+ *      📄 Document, 🖼️ Image, 🎬 GIF, 🛍️ Product, 👥 Group invite,
+ *      💳 Payment — each quotes the user's text with a different
+ *      synthetic message type; the text itself is the body.
  */
 import {
   selectMenu,
@@ -30,6 +36,19 @@ import {
 } from '../../lib/interactiveKit.js';
 import { getDisplayName } from '../../lib/displayName.js';
 import { FANCY_FONTS, toFancy } from '../../lib/fancyFonts.js';
+import {
+  buildFakeOrderQuote,
+  buildFakeAudioQuote,
+  buildFakeLiveLocationQuote,
+  buildFakeDocumentQuote,
+  buildFakeImageQuote,
+  buildFakeGifQuote,
+  buildFakeProductQuote,
+  buildFakeGroupInviteQuote,
+  buildFakePaymentQuote,
+  buildFakeNewsletterQuote,
+} from '../../lib/waUtils.js';
+import { getChannelPill } from '../../lib/menuContext.js';
 
 /* ── Pending-text store ────────────────────────────────────────────────────
  * Keyed by sender + short random id. Entries expire after 10 minutes; the
@@ -91,7 +110,7 @@ export default {
     const first = (args[0] || '').trim();
 
     /* ── Picker reply: `.enrich <style>-<key>` ── */
-    const pick = first.match(/^(bold|italic|mono|strike|contact|code|table|copy|buttons|quote|redo|serif|sans|italics|script|gothic|double|fmono|smallcaps|fullwidth|circled|outlined)-([a-z0-9]{4,8})$/);
+    const pick = first.match(/^(bold|italic|mono|strike|contact|code|table|copy|buttons|quote|redo|serif|sans|italics|script|gothic|double|fmono|smallcaps|fullwidth|circled|outlined|qnewsletter|qorder|qaudio|qlocation|qdocument|qimage|qgif|qproduct|qgroup|qpayment)-([a-z0-9]{4,8})$/);
     if (pick) {
       const [, style, key] = pick;
       const text = loadText(m.sender, key);
@@ -109,7 +128,7 @@ export default {
     const text = args.join(' ').trim();
     if (!text) {
       return await m.reply.info(
-        `Turn any text into a rich WhatsApp message.\n\nExample: \`${p}enrich hello world\`\nThen pick a style: bold, italic, monospace, strikethrough, 11 fancy Unicode fonts, contact card, code card, table, copy card, buttons or quote strip.`,
+        `Turn any text into a rich WhatsApp message.\n\nExample: \`${p}enrich hello world\`\nThen pick a style: bold, italic, monospace, strikethrough, 11 fancy Unicode fonts, contact card, code card, table, copy card, buttons, or a cosmetic quote strip (newsletter, order, voice note, location, document, image, GIF, product, group invite, payment).`,
         'ENRICH'
       );
     }
@@ -119,6 +138,33 @@ export default {
     const key = saveText(m.sender, text);
     return await showPicker(m, sock, p, text, key);
   },
+};
+
+/* ── Quote-style registry ──────────────────────────────────────────────────
+ * Each entry turns the user's text into a synthetic `quoted` of a different
+ * message type (the same cosmetic-quote pattern as the contact strip).
+ * The text itself is sent as the body — the quote is pure decoration. */
+const QUOTE_BUILDERS = {
+  qnewsletter: (t) => {
+    // Channel from the configured pill (.setchannel) when present, so the
+    // invite strip always shows the owner's real channel; builder defaults
+    // otherwise. caption carries the user's text onto the invite card.
+    let pill = null;
+    try { pill = getChannelPill()?.forwardedNewsletterMessageInfo; } catch { /* default */ }
+    return buildFakeNewsletterQuote({
+      ...(pill?.newsletterJid ? { newsletterJid: pill.newsletterJid, newsletterName: pill.newsletterName } : {}),
+      caption: t.slice(0, 80),
+    });
+  },
+  qorder:    (t) => buildFakeOrderQuote({ title: t.slice(0, 60), orderTitle: t.slice(0, 40) }),
+  qaudio:    ()  => buildFakeAudioQuote({ ptt: true }),
+  qlocation: (t) => buildFakeLiveLocationQuote({ caption: t.slice(0, 60) }),
+  qdocument: (t) => buildFakeDocumentQuote({ title: t.slice(0, 40), fileName: t.slice(0, 40) }),
+  qimage:    ()  => buildFakeImageQuote({}),
+  qgif:      (t) => buildFakeGifQuote({ caption: t.slice(0, 60) }),
+  qproduct:  (t) => buildFakeProductQuote({ title: t.slice(0, 30), description: t.slice(0, 80) }),
+  qgroup:    (t) => buildFakeGroupInviteQuote({ groupName: t.slice(0, 35), caption: t.slice(0, 60) }),
+  qpayment:  (t) => buildFakePaymentQuote({ note: t.slice(0, 60) }),
 };
 
 /* ── Picker ─────────────────────────────────────────────────────────────── */
@@ -159,6 +205,21 @@ async function showPicker(m, sock, p, text, key) {
         description: toFancy(font.id, 'Hello').slice(0, 30),
       })),
     },
+    {
+      title: '🧵 Quote styles',
+      rows: [
+        { id: `${p}enrich qnewsletter-${key}`, title: '📢 Newsletter', description: 'Quote strip as a channel admin invite' },
+        { id: `${p}enrich qorder-${key}`,     title: '🧾 Order',      description: 'Quote strip as a catalog order' },
+        { id: `${p}enrich qaudio-${key}`,     title: '🎵 Voice Note', description: 'Quote strip as a voice note' },
+        { id: `${p}enrich qlocation-${key}`,   title: '📍 Live Location', description: 'Quote strip as a live location card' },
+        { id: `${p}enrich qdocument-${key}`,  title: '📄 Document',   description: 'Quote strip as a document' },
+        { id: `${p}enrich qimage-${key}`,     title: '🖼️ Image',     description: 'Quote strip as a photo' },
+        { id: `${p}enrich qgif-${key}`,       title: '🎬 GIF',        description: 'Quote strip as an animated GIF' },
+        { id: `${p}enrich qproduct-${key}`,   title: '🛍️ Product',    description: 'Quote strip as a catalog product' },
+        { id: `${p}enrich qgroup-${key}`,     title: '👥 Group Invite', description: 'Quote strip as a group invite card' },
+        { id: `${p}enrich qpayment-${key}`,   title: '💳 Payment',    description: 'Quote strip as a payment note' },
+      ],
+    },
   ], [], { quoted: m });
 }
 
@@ -167,6 +228,10 @@ async function render(m, sock, style, text, key, p) {
   // Unicode font styles — plain text, no WA formatting marks needed
   const font = FANCY_FONTS.find((x) => x.id === style);
   if (font) return await m.reply(toFancy(style, text));
+
+  // Cosmetic quote strips — body is the text, quote is the decoration
+  const quoteBuilder = QUOTE_BUILDERS[style];
+  if (quoteBuilder) return await m.reply(text, { quoted: quoteBuilder(text) });
 
   switch (style) {
     case 'bold':
