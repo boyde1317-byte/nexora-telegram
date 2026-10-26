@@ -61,6 +61,17 @@ const PROVIDERS = [
     textModel: () => process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
     visionModel: () => process.env.OPENROUTER_VISION_MODEL || 'meta-llama/llama-4-scout:free',
   },
+  {
+    // Venice.ai — OpenAI-compatible gateway (api.venice.ai). Uncensored
+    // flagship text model by default; GLM vision variant for image input.
+    // Lowest priority: only used when no higher-priority provider answers.
+    name: 'venice',
+    kind: 'openai-compat',
+    baseUrl: 'https://api.venice.ai/api/v1',
+    resolveKey: () => process.env.VENICE_API_KEY || '',
+    textModel: () => process.env.VENICE_MODEL || 'venice-uncensored-1-2',
+    visionModel: () => process.env.VENICE_VISION_MODEL || 'z-ai-glm-5v-turbo',
+  },
 ];
 
 export function hasApiKey() {
