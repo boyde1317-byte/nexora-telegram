@@ -2,6 +2,7 @@ import { config } from '../../config/index.js';
 import { client } from '../core/client.js';
 import { findCustomCommand } from '../plugins/group/customcmd.js';
 import { db } from '../database/db.js';
+import { commandCost, chargeCoins, refundCoins, EARN_HINT } from '../economy/spending.js';
 import { serialize } from '../core/serializer.js';
 import { checkStickerCommand } from '../lib/stickerCommand.js';
 import { MASS_MENTION_THRESHOLD } from '../plugins/group/antitag.js';
@@ -514,6 +515,25 @@ try {
       const resolvedName = client.aliases.get(stickerCmd) ?? stickerCmd;
       const command = client.commands.get(resolvedName);
       if (command) {
+        // Sticker shortcuts pay the same coin costs as typed commands —
+        // otherwise a sticker mapped to a paid command would be a free
+        // bypass. Same semantics: refund when the plugin throws.
+        let stickerCharge = 0;
+        const stickerOwner = await m.isOwner;
+        if (!stickerOwner) {
+          const cost = commandCost(command, db.getUser(sender));
+          if (cost > 0) {
+            const charge = chargeCoins(db, sender, cost);
+            if (!charge.ok) {
+              await m.reply.error(
+                `Not enough coins for \`${command.name}\`.\n\n` +
+                `🪙 Cost: **${cost}** — your balance: **${charge.balance}**\n\n${EARN_HINT}`
+              );
+              return;
+            }
+            stickerCharge = charge.cost;
+          }
+        }
         try {
           m._activeCommand = command.name;
           await command.execute({
@@ -525,6 +545,7 @@ try {
           });
           console.log(`[STICKER-CMD] ${command.name} ← ${sender.split('@')[0]} in ${isGroupMsg ? jid : 'DM'}`);
         } catch (err) {
+          if (stickerCharge) { try { refundCoins(db, sender, stickerCharge); } catch (_) {} }
           console.error(`[STICKER-CMD ERROR] ${command.name}:`, err.message || err);
         }
       }
@@ -723,6 +744,26 @@ try {
     return;
   }
 
+  // 8. Coin cost gate — the sink that makes coins matter. Economy earning
+  // commands and core tooling stay free (see src/economy/spending.js);
+  // owners never pay. Charged coins are refunded below if the plugin
+  // throws, so users never pay for failures.
+  let coinCharge = 0;
+  if (!ownerCheck) {
+    const cost = commandCost(command, userData);
+    if (cost > 0) {
+      const charge = chargeCoins(db, sender, cost);
+      if (!charge.ok) {
+        await m.reply.error(
+          `Not enough coins for \`${prefix}${command.name}\`.\n\n` +
+          `🪙 Cost: **${cost}** — your balance: **${charge.balance}**\n\n${EARN_HINT}`
+        );
+        return;
+      }
+      coinCharge = charge.cost;
+    }
+  }
+
   // ── Build context for plugin execute() ─────────────────────────────────
   const ctx = {
     m,
@@ -755,6 +796,7 @@ try {
     await command.execute(ctx);
     try { client.recordExecution(command.name, false); } catch (_) {}
     console.log(`[CMD] ${command.name} ← ${sender.split('@')[0]} in ${isGroupMsg ? jid : 'DM'}`);
+    if (coinCharge) { try { await m.react('🪙'); } catch (_) {} }
     connectionMonitor.recordCommandExecuted(command.name);
 
     // ── Track command usage statistics ───────────────────────────────
@@ -767,6 +809,7 @@ try {
       db.save();
     } catch (_) {}
   } catch (execErr) {
+    if (coinCharge) { try { refundCoins(db, sender, coinCharge); } catch (_) {} }
     try { client.recordExecution(command.name, true); } catch (_) {}
     console.error(`[CMD ERROR] ${command.name} threw:`, execErr.message || execErr);
     // Per-plugin error hook (client tracks these for lifecycle plugins)
