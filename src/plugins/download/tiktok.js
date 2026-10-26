@@ -11,7 +11,7 @@
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { tiktokDownload, isUrl } from '../../lib/downloader.js';
 import { DownloadProgress } from '../../lib/progress.js';
-import { sendReelWithStatsCard } from '../../lib/richContent.js';
+import { sendReelWithStatsCard, sendMediaCarousel } from '../../lib/richContent.js';
 import { richTableCard } from '../../lib/interactiveKit.js';
 
 export default {
@@ -44,6 +44,28 @@ export default {
           ['Audio',   data.audio ? 'Available (MP3)' : '—'],
           ['Source',  'TikTok'],
         ];
+
+        // ── Photo-post tier: 📸 native swipeable carousel (ported from ──
+        // Yorumi-MD's TikTok photo dump view). Each slide is its own card
+        // with an "Open photo" button; falls back to plain image sends.
+        if (data.images?.length) {
+          await progress.done(`✅ Got it! ${data.images.length} photo${data.images.length > 1 ? 's' : ''}. Sending carousel...`);
+
+          const sent = await sendMediaCarousel(sock, m.from, m, {
+            title: `📸 ${(data.title || 'TikTok Photo Post').slice(0, 80)}`,
+            images: data.images.map((u, i) => ({ url: u, title: `Slide ${i + 1}` })),
+            footer: '© NEXORA-MD by Aizen',
+          });
+          if (sent) return;
+
+          for (const [i, u] of data.images.slice(0, 5).entries()) {
+            await sock.sendMessage(m.from, {
+              image: { url: u },
+              ...(i === 0 ? { caption: `📸 ${(data.title || 'TikTok Photo Post').slice(0, 80)}\n${data.author ? '👤 ' + data.author : ''}` } : {}),
+            }, { quoted: m });
+          }
+          return;
+        }
 
         // ── Rich tier: 🎬 Reel + Stats Table (.testrich reelstats) ──
         // Native reel player with the stats table beneath it, one card.

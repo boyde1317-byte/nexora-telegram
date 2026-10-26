@@ -25,6 +25,7 @@ import {
   generateLatexContentV2,
   generateLatexImageContentV2,
 } from 'baileys';
+import { proto, generateWAMessageFromContent, prepareWAMessageMedia } from 'baileys';
 import crypto from 'crypto';
 import capabilities from '../core/capabilities.js';
 import { relayGenerated } from './richMap.js';
@@ -78,6 +79,70 @@ export async function sendMultiImageGallery(sock, jid, quoted, { images, headerT
     return await _try(sock, jid, generated);
   } catch (err) {
     console.warn('[richContent] multi-image gallery failed:', err.message);
+    return false;
+  }
+}
+
+/**
+ * Native swipeable MEDIA carousel (ported from Yorumi-MD's TikTok photo
+ * dump view). Each image becomes its own card with the photo as header
+ * media and a cta_url "Open photo" button; cards swipe horizontally.
+ *
+ * Falls back to `false` on ANY failure (device, media prep, relay) so the
+ * caller can send plain images instead.
+ */
+export async function sendMediaCarousel(sock, jid, quoted, { title, images, footer }) {
+  if (!images?.length) return false;
+  const cards = [];
+  for (let i = 0; i < Math.min(images.length, 10); i++) {
+    const img = images[i];
+    try {
+      const media = await prepareWAMessageMedia(
+        { image: { url: img.url } },
+        { upload: sock.waUploadToServer }
+      );
+      cards.push({
+        header: proto.Message.InteractiveMessage.Header.fromObject({
+          title: String(img.title || ('Slide ' + (i + 1))).slice(0, 60),
+          hasMediaAttachment: true,
+          ...media,
+        }),
+        nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
+          buttons: [{
+            name: 'cta_url',
+            buttonParamsJson: JSON.stringify({
+              display_text: img.buttonText || 'Open photo',
+              url: img.url,
+              merchant_url: img.url,
+            }),
+          }],
+        }),
+      });
+    } catch (err) {
+      console.warn('[richContent] carousel card ' + (i + 1) + ' failed:', err.message);
+    }
+  }
+  if (!cards.length) return false;
+  try {
+    const generated = generateWAMessageFromContent(
+      jid,
+      {
+        viewOnceMessageV2Extension: {
+          message: {
+            messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
+            interactiveMessage: proto.Message.InteractiveMessage.fromObject({
+              body: { text: [title, '', footer].filter(Boolean).join('\n') },
+              carouselMessage: proto.Message.InteractiveMessage.CarouselMessage.fromObject({ cards }),
+            }),
+          },
+        },
+      },
+      { ...(sock.user?.id ? { userJid: sock.user.id } : {}), quoted }
+    );
+    await sock.relayMessage(jid, generated.message, { messageId: generated.key.id });
+    return true;
+  } catch (err) {
+    console.warn('[richContent] media carousel failed:', err.message);
     return false;
   }
 }

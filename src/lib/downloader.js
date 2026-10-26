@@ -202,12 +202,15 @@ async function loaderToDownload(url, format) {
 /** TikTok video → direct (no-watermark) video/audio links. */
 export async function tiktokDownload(url) {
   const data = await getJson(`/ttdl?url=${encodeURIComponent(url)}`, {
-    validate: (j) => !!((j?.status || j?.video) && (j.video?.length || j.audio?.length)),
+    validate: (j) => !!(j?.status || j.video?.length || j.audio?.length || j.images?.length || j.photos?.length),
   });
   const videos = data.video || [];
   const audios = data.audio || [];
-  if (videos.length === 0) throw new Error('TikTok returned no downloadable video for that link — it may have been removed or is private.');
+  // Photo-post slideshows: the ttdl endpoint returns an image array for them.
+  const images = data.images || data.photos || [];
+  if (videos.length === 0 && images.length === 0) throw new Error('TikTok returned no downloadable video for that link — it may have been removed or is private.');
   return {
+    images,
     title: data.title,
     // `creator` is the uploader's actual username. `title_audio` is NOT an
     // author field at all — it's the sound/music track title (usually just
