@@ -7,13 +7,19 @@
  * single_select card; the pick arrives back as `.enrich <style>-<key>` and
  * the stored text is rendered in that style. Styles:
  *
- *   Text formatting          Rich cards
- *   ── ✨ Bold               ── 📇 Contact card (real vcard message)
- *      🌊 Italic                💻 Code card (syntax-highlighted)
- *      🔠 Monospace             📊 Table card (lines → rows, , / | → cols)
- *      🪄 Strikethrough         📋 Copy card (tap-to-copy button)
- *                               🔘 Buttons card (action + copy buttons)
- *                               🧵 Quote strip (self-attributed contact quote)
+ *   Text formatting          Fancy fonts (src/lib/fancyFonts.js)
+ *   ── ✨ Bold               ── 11 Unicode styles: Bold Serif, Bold Sans,
+ *      🌊 Italic                Serif Italic, Script, Gothic, Double-Struck,
+ *      🔠 Monospace             Tech Mono, Small Caps, Fullwidth, Circled,
+ *      🪄 Strikethrough         Outlined
+ *
+ *   Rich cards
+ *   ── 📇 Contact card (real vcard message)
+ *      💻 Code card (syntax-highlighted)
+ *      📊 Table card (lines → rows, , / | → cols)
+ *      📋 Copy card (tap-to-copy button)
+ *      🔘 Buttons card (action + copy buttons)
+ *      🧵 Quote strip (self-attributed contact quote)
  */
 import {
   selectMenu,
@@ -23,6 +29,7 @@ import {
   mixedCard,
 } from '../../lib/interactiveKit.js';
 import { getDisplayName } from '../../lib/displayName.js';
+import { FANCY_FONTS, toFancy } from '../../lib/fancyFonts.js';
 
 /* ── Pending-text store ────────────────────────────────────────────────────
  * Keyed by sender + short random id. Entries expire after 10 minutes; the
@@ -84,7 +91,7 @@ export default {
     const first = (args[0] || '').trim();
 
     /* ── Picker reply: `.enrich <style>-<key>` ── */
-    const pick = first.match(/^(bold|italic|mono|strike|contact|code|table|copy|buttons|quote|redo)-([a-z0-9]{4,8})$/);
+    const pick = first.match(/^(bold|italic|mono|strike|contact|code|table|copy|buttons|quote|redo|serif|sans|italics|script|gothic|double|fmono|smallcaps|fullwidth|circled|outlined)-([a-z0-9]{4,8})$/);
     if (pick) {
       const [, style, key] = pick;
       const text = loadText(m.sender, key);
@@ -102,7 +109,7 @@ export default {
     const text = args.join(' ').trim();
     if (!text) {
       return await m.reply.info(
-        `Turn any text into a rich WhatsApp message.\n\nExample: \`${p}enrich hello world\`\nThen pick a style: bold, italic, monospace, strikethrough, contact card, code card, table, copy card, buttons or quote strip.`,
+        `Turn any text into a rich WhatsApp message.\n\nExample: \`${p}enrich hello world\`\nThen pick a style: bold, italic, monospace, strikethrough, 11 fancy Unicode fonts, contact card, code card, table, copy card, buttons or quote strip.`,
         'ENRICH'
       );
     }
@@ -143,11 +150,24 @@ async function showPicker(m, sock, p, text, key) {
         { id: `${p}enrich quote-${key}`,   title: '🧵 Quote Strip',   description: 'Sent as a contact-card quote of you' },
       ],
     },
+    {
+      title: '🔤 Fancy fonts',
+      rows: FANCY_FONTS.map((font) => ({
+        id:          `${p}enrich ${font.id}-${key}`,
+        title:       `${font.emoji} ${font.label}`,
+        // live preview of the style right in the row description
+        description: toFancy(font.id, 'Hello').slice(0, 30),
+      })),
+    },
   ], [], { quoted: m });
 }
 
 /* ── Renderers ──────────────────────────────────────────────────────────── */
 async function render(m, sock, style, text, key, p) {
+  // Unicode font styles — plain text, no WA formatting marks needed
+  const font = FANCY_FONTS.find((x) => x.id === style);
+  if (font) return await m.reply(toFancy(style, text));
+
   switch (style) {
     case 'bold':
       return await m.reply(`*${text}*`);
