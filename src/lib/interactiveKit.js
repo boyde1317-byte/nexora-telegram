@@ -77,7 +77,7 @@ const cap = (arr) => arr.slice(0, 10);
  * Swap the caller's { quoted: m } for the rotating AI-persona quote so
  * interactive cards carry the same rich header as text replies (the default
  * quote renders as "You" — aiQuoted() attributes the strip to Meta AI /
- * ChatGPT / Perplexity instead, round-robin per send). Callers can still
+ * ChatGPT / Perplexity instead — the 'card' kind persona). Callers can still
  * force a real quote by passing one whose key they control; personas always
  * win here so the card UI stays consistent with m.reply.
  */
