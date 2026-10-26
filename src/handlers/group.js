@@ -4,6 +4,7 @@ import { getLinkedBotPhones } from '../core/sessionManager.js';
 import { isBotName } from '../lib/botDetector.js';
 import { mixedCard } from '../lib/interactiveKit.js';
 import capabilities from '../core/capabilities.js';
+import { mentionLabel, resolveMentionJid } from '../lib/mentionJid.js';
 
 /**
  * Routes group participant events to the canonical greeting pipeline.
@@ -70,9 +71,10 @@ export async function handleGroupParticipantsUpdate(update, sock) {
               const [info] = await sock.onWhatsApp(participant);
               const vName  = info?.verifiedName || info?.verifiedBizName || '';
               if (vName && isBotName(vName)) {
+                const mentionJid = await resolveMentionJid(sock, participant, groupJid);
                 await sock.sendMessage(groupJid, {
-                  text: `🤖 @${participant.split('@')[0]} was turned away at the door — bot account detected (name: ${vName}).`,
-                  mentions: [participant],
+                  text: `🤖 ${mentionLabel(mentionJid)} was turned away at the door — bot account detected (name: ${vName}).`,
+                  mentions: [mentionJid],
                 }).catch(() => {});
                 await sock.groupParticipantsUpdate(groupJid, [participant], 'remove');
                 continue;

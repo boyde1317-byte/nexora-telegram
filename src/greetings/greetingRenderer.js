@@ -7,6 +7,7 @@ import { welcome2 } from './greetingStyles/welcome2.js';
 import { welcome3 } from './greetingStyles/welcome3.js';
 import { welcome4 } from './greetingStyles/welcome4.js';
 import { db } from '../database/db.js';
+import { mentionLabel, resolveMentionJid } from '../lib/mentionJid.js';
 
 // Simple in-memory caches to prevent rate limiting & disk bottleneck
 const profilePicCache = new Map();
@@ -117,6 +118,8 @@ export const greetingRenderer = {
       return;
     }
 
+    userJid = await resolveMentionJid(sock, userJid, jid);
+
     if (!this._isGreetingEnabled(jid, isWelcome)) {
       console.log(`[GREETING RENDERER] ${isWelcome ? 'Welcome' : 'Goodbye'} disabled for ${jid} (per-group or global)`);
       return;
@@ -151,11 +154,12 @@ export const greetingRenderer = {
         } catch { /* fall through without metadata */ }
         const groupName = metadata?.subject || 'this group';
         const memberCount = metadata?.participants?.length || 0;
-        const nameList = users.map(u => `@${u.split('@')[0]}`).join(', ');
+        const resolvedUsers = await Promise.all(users.map(u => resolveMentionJid(sock, u, jid)));
+        const nameList = resolvedUsers.map(mentionLabel).join(', ');
         const text = isWelcome
           ? `👋 Welcome ${nameList} to *${groupName}* — you are member #${memberCount}! (${users.length} joined together)`
           : `👋 ${nameList} left *${groupName}*.`;
-        await sock.sendMessage(jid, { text, mentions: users });
+        await sock.sendMessage(jid, { text, mentions: resolvedUsers });
         console.log(`[GREETING RENDERER] Batched ${users.length} users into one greeting for ${jid}`);
         return;
       }
@@ -173,8 +177,8 @@ export const greetingRenderer = {
 
       const groupName = metadata.subject || 'this Group';
       const memberCount = metadata.participants ? metadata.participants.length : 1;
-      const userNumber = userJid.split('@')[0];
-      const userMention = `@${userNumber}`;
+      const userMention = mentionLabel(userJid);
+      const userNumber = userMention.slice(1);
 
       // 3. Fetch user profile pic
       const profilePicUrl = await this.getUserProfilePic(sock, userJid);
