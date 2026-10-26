@@ -67,6 +67,7 @@ runMigrations(_data, (data) => saveDb(data));
 
 export const db = {
   data: _data,
+  _dirty: false,
   _saveTimeout: null,
   _autoSaveInterval: null,
 
@@ -142,21 +143,22 @@ export const db = {
       clearTimeout(this._saveTimeout);
       this._saveTimeout = null;
     }
-    saveDb(_data);
+    if (saveDb(_data)) this._dirty = false;
   },
 
   save() {
+    this._dirty = true;
     if (this._saveTimeout) clearTimeout(this._saveTimeout);
     this._saveTimeout = setTimeout(() => {
       this._saveTimeout = null;
-      saveDb(_data);
+      if (this._dirty && saveDb(_data)) this._dirty = false;
     }, 2000);
   },
 
   startAutoSave() {
     if (this._autoSaveInterval) return;
     this._autoSaveInterval = setInterval(() => {
-      saveDb(_data);
+      if (this._dirty && saveDb(_data)) this._dirty = false;
     }, AUTO_SAVE_INTERVAL_MS);
     this._autoSaveInterval.unref();
   },

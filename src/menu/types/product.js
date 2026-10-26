@@ -27,7 +27,7 @@ import { buildFakeImageQuote } from '../../lib/waUtils.js';
  *   3 → guaranteed plain text
  */
 export const productMenu = {
-  id: 17,
+  id: 20,
   name: 'product',
   description: 'Offer overlay card — limited_time_offer banner + image header + action buttons',
   supportedMessages: ['interactiveMessage', 'nativeFlowMessage'],

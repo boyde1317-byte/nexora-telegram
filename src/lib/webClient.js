@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { URL } from 'url';
 
 const cache = new Map();
+const pending = new Map();
 const MAX_CACHE_ENTRIES = 500;
 
 // ── SSRF Protection ──────────────────────────────────────────────────────
@@ -44,29 +45,37 @@ const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 export class WebClient {
   constructor(options = {}) {
     this.timeout = options.timeout || 15000;
-    this.retries = options.retries || 2;
+    this.retries = options.retries ?? 2;
   }
 
   async fetch(url, options = {}) {
-    const { retries = this.retries, useCache = false, cacheTtl = 60000, ...fetchOptions } = options;
+    const {
+      retries = this.retries,
+      timeout = this.timeout,
+      useCache = false,
+      cacheTtl = 60000,
+      ...fetchOptions
+    } = options;
     const cacheKey = useCache ? crypto.createHash('md5').update(url + JSON.stringify(fetchOptions)).digest('hex') : null;
 
     if (useCache && cache.has(cacheKey)) {
       const cached = cache.get(cacheKey);
       if (Date.now() - cached.timestamp < cacheTtl) {
-        return cached.data;
+        return cached.value;
       }
       cache.delete(cacheKey);
     }
+    if (useCache && pending.has(cacheKey)) return pending.get(cacheKey);
 
+    const request = (async () => {
     let lastError;
     for (let attempt = 1; attempt <= retries + 1; attempt++) {
+      let id;
       try {
         const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), this.timeout);
+        id = setTimeout(() => controller.abort(), timeout);
         
         const response = await fetch(url, { ...fetchOptions, signal: controller.signal });
-        clearTimeout(id);
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -101,18 +110,30 @@ export class WebClient {
           data = buf;
         }
 
-        if (useCache && cacheKey) {
-          setBoundedCache(cacheKey, { timestamp: Date.now(), data });
-        }
-        return { data, headers: response.headers, status: response.status };
+        const result = { data, headers: response.headers, status: response.status };
+        if (useCache && cacheKey) setBoundedCache(cacheKey, { timestamp: Date.now(), value: result });
+        return result;
       } catch (error) {
         lastError = error;
         if (attempt <= retries) {
           await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
         }
+      } finally {
+        if (id) clearTimeout(id);
       }
     }
     throw lastError;
+    })();
+
+    if (useCache && cacheKey) {
+      pending.set(cacheKey, request);
+      try {
+        return await request;
+      } finally {
+        pending.delete(cacheKey);
+      }
+    }
+    return request;
   }
 }
 

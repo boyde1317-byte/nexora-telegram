@@ -11,6 +11,14 @@ export const aiAssetGenerator = {
   },
 
   /**
+   * Boot-time asset generation is intentionally stricter than command-time
+   * availability, so startup never generates assets unless explicitly enabled.
+   */
+  isBootGenerationEnabled() {
+    return this.isEnabled();
+  },
+
+  /**
    * Generates an image using Gemini AI based on the specified prompt
    * @param {string} prompt - Detailed description of the image to generate
    * @param {string} aspectRatio - "16:9", "1:1", "4:3", etc.

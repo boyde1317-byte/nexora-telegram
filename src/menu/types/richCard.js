@@ -88,7 +88,7 @@ export const richCardMenu = {
           subtitle:  `${menuData.totalCommands} commands \u2502 ${menuData.uptime}`,
           thumbnail,
           buttons: [
-            { displayText: '\u{1F4CB} All Commands', id: `${menuData.prefix}menu all`, type: 1 },
+            { displayText: '\u{1F4CB} Browse Commands', id: `${menuData.prefix}help`, type: 1 },
             buildNavigationButton(menuData.prefix),
           ],
           contextInfo: aboutCtx,

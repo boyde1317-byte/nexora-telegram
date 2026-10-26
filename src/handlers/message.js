@@ -275,7 +275,11 @@ try {
         try {
           const senderIsAdmin = await m.isAdmin();
           if (!senderIsAdmin && !(await m.isOwner)) {
-            await sock.sendMessage(jid, { delete: m.key });
+            try {
+              await sock.sendMessage(jid, { delete: m.key });
+            } catch (deleteErr) {
+              console.warn('[ANTILINK] Could not delete offending message:', deleteErr.message || deleteErr);
+            }
             const groupData2 = db.getGroup(jid);
             const groupWarns = groupData2.warnings || {};
             const warns = (groupWarns[sender] ?? 0) + 1;
@@ -321,7 +325,11 @@ try {
         try {
           const senderIsAdmin = await m.isAdmin();
           if (!senderIsAdmin && !(await m.isOwner)) {
-            await sock.sendMessage(jid, { delete: m.key });
+            try {
+              await sock.sendMessage(jid, { delete: m.key });
+            } catch (deleteErr) {
+              console.warn('[ANTITAG] Could not delete offending message:', deleteErr.message || deleteErr);
+            }
             const groupData3 = db.getGroup(jid);
             const groupWarns = groupData3.warnings || {};
             const warns = (groupWarns[sender] ?? 0) + 1;
@@ -710,7 +718,7 @@ try {
       const secs = Math.floor(remainingSec % 60);
       timeStr = secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
     } else {
-      timeStr = `${remainingSec.toFixed(1)}s`;
+      timeStr = `${Math.max(0.1, remainingSec).toFixed(1)}s`;
     }
     // ── Cooldown UX: suggest related commands the user can try while waiting.
     // This turns a dead-end "wait" message into an actionable pivot.
@@ -733,9 +741,6 @@ try {
     }
     return;
   }
-
-  client.cooldowns.set(cooldownKey, now);
-  setTimeout(() => client.cooldowns.delete(cooldownKey), cooldownMs);
 
   // 7. Database ban check
   const userData = db.getUser(sender);
@@ -763,6 +768,11 @@ try {
       coinCharge = charge.cost;
     }
   }
+
+  // Reserve cooldown only once the command is eligible to run. Denied users
+  // should be able to retry immediately after fixing the denial reason.
+  client.cooldowns.set(cooldownKey, now);
+  setTimeout(() => client.cooldowns.delete(cooldownKey), cooldownMs);
 
   // ── Build context for plugin execute() ─────────────────────────────────
   const ctx = {

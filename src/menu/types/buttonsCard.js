@@ -139,7 +139,7 @@ export const buttonsCardMenu = {
 
       const buttons = [
         { displayText: '📋 Main Menu', id: `${p}menu`, type: 1 },
-        { displayText: '📜 All Commands', id: `${p}menu all`, type: 1 },
+        { displayText: '📜 Browse Commands', id: `${p}help`, type: 1 },
         buildNavigationButton(p),
       ];
 
@@ -195,7 +195,7 @@ export const buttonsCardMenu = {
 
       // Buttons: Store/quick action + Navigation single_select
       const buttons = [
-        { displayText: '📋 All Commands', id: `${p}menu all`, type: 1 },
+        { displayText: '📋 Browse Commands', id: `${p}help`, type: 1 },
         { displayText: '🤖 System Info',  id: `${p}about`,    type: 1 },
         buildNavigationButton(p),
       ];

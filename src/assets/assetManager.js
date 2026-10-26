@@ -149,7 +149,7 @@ export const assetManager = {
     await ensureDefaultAssets();
 
     const db = this.loadAssetsDb();
-    const geminiAvailable = aiAssetGenerator.isEnabled();
+    const geminiAvailable = aiAssetGenerator.isBootGenerationEnabled();
 
     console.log(`[ASSET MANAGER] Gemini AI generation: ${geminiAvailable ? 'ENABLED' : 'DISABLED'}`);
     console.log('[ASSET MANAGER] All default visuals are CDN-hosted URLs — no local files required.');

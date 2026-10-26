@@ -37,19 +37,30 @@ import { generateWAMessageFromContent } from 'baileys';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const GAMES_DIR = path.join(__dirname, '..', 'assets', 'htmlgames');
+const payloadCache = new Map();
+let certificateChainCache;
 
 // Scene-proven static verification blob (same data every scene bot ships).
 const VERIFICATION_SIGNATURE =
   'TklYRUwuTWVzc2FnZUJ1aWxkZXJWNC43LVZlcmlmaWNhdGlvblNpZ25hdHVyZS5NZXRhZGF0YeN55YRyad2+ZA==';
 
 function loadCertificateChain() {
+  if (certificateChainCache) return certificateChainCache;
   try {
     const raw = fs.readFileSync(path.join(GAMES_DIR, 'certificate.json'), 'utf-8');
     const chain = JSON.parse(raw);
-    return Array.isArray(chain) ? chain : [];
+    certificateChainCache = Array.isArray(chain) ? chain : [];
   } catch (_) {
-    return [];
+    certificateChainCache = [];
   }
+  return certificateChainCache;
+}
+
+function loadPayload(file) {
+  if (payloadCache.has(file)) return payloadCache.get(file);
+  const payload = fs.readFileSync(path.join(GAMES_DIR, file), 'utf-8');
+  payloadCache.set(file, payload);
+  return payload;
 }
 
 /**
@@ -107,7 +118,7 @@ export async function sendHtmlGame(sock, jid, { game, quoted }) {
 
   let payload;
   try {
-    payload = fs.readFileSync(path.join(GAMES_DIR, meta.file), 'utf-8');
+    payload = loadPayload(meta.file);
   } catch (_) {
     return { ok: false, reason: `payload missing: ${meta.file}` };
   }

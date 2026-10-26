@@ -102,10 +102,9 @@ export default {
       }
     } catch (_) {}
 
-    // ── If a timeout is already active in this group, cancel its timer first
+    // ── Do not silently replace an active group-wide lock.
     if (activeTimeouts.has(m.from)) {
-      const existing = activeTimeouts.get(m.from);
-      clearTimeout(existing.timer);
+      return await m.reply.error('This group is already locked by an active timeout. Use `.unmute` or wait for it to expire.');
     }
 
     // ── Apply restriction: switch group to announcement (admin-only) mode

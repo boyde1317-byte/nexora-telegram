@@ -90,7 +90,7 @@ export const carouselMenu = {
         caption:   buildCaption(unit),
         footer:    `\u2726 ${toSmallcaps('Card')} ${idx + 1}/${units.length} \u2502 ${menuData.botName}`,
         nativeFlow: [
-          { text: `\u26A1 ${unit.cats[0].toUpperCase()}`, id: `${menuData.prefix}menu` },
+          { text: `⚡ ${unit.cats[0].toUpperCase()}`, id: `${menuData.prefix}help ${unit.cats[0]}` },
           { text: `\u{1F916} ${toSmallcaps('Stats')}`, id: `${menuData.prefix}menu aiDynamic` },
           { text: '\u{1F4AC} Join Group', url: SUPPORT_GROUP_URL },
         ],
@@ -113,7 +113,7 @@ export const carouselMenu = {
         const emoji = CATEGORY_EMOJIS[cat] || '\u{1F4C2}';
         return {
           text: `${emoji} ${cat.toUpperCase()} (${menuData.categories[cat].length})`,
-          id:   `${menuData.prefix}menu`,
+          id:   `${menuData.prefix}help ${cat}`,
         };
       });
       if (catButtons.length === 0) {
