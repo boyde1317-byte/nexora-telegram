@@ -79,7 +79,7 @@ const buildA2uiSpec = (uuid, bannerUrl) => {
       : []),
     { id: 'information', component: 'Card', child: 'information_card' },
     { id: 'information_card', component: 'Column', children: ['title_text', 'Divider8', 'infor_text'] },
-    { id: 'title_text', component: 'Text', text: `The ${fancy(brand.name)} Graphiq`, variant: 'h3' },
+    { id: 'title_text', component: 'Text', text: `About ${fancy(brand.name)} — Quick Facts`, variant: 'h3' },
     { id: 'Divider8', component: 'Divider' },
     { id: 'infor_text', component: 'Text', text: infoBlock('.'), variant: 'body' },
     { id: 'nexora_channel', component: 'Text', text: 'NEXORA Channel' },
@@ -327,7 +327,7 @@ export const galaxyMenu = {
               {
                 name: 'review_and_pay',
                 buttonParamsJson: JSON.stringify({
-                  currency: 'GBP',
+                  currency: 'USD',
                   payment_configuration: 'payment_settings',
                   payment_type: 'payment_method',
                   total_amount: { value: 72000000, offset: 100 },
