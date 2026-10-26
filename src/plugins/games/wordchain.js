@@ -33,6 +33,8 @@ function setGame(jid, game) {
 }
 
 function deleteGame(jid) {
+  const game = games.get(jid);
+  if (game?.timeout) clearTimeout(game.timeout);
   games.delete(jid);
 }
 
@@ -94,6 +96,7 @@ export default {
         words: [],
         log: [],
         lastWord: null,
+        startLetter: null,
         timeout: null,
         startedAt: Date.now(),
       });
@@ -149,6 +152,7 @@ export default {
 
       // Pick a random starting letter
       const startLetter = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+      game.startLetter = startLetter;
       const currentPlayer = game.players[0];
       const playerNum = currentPlayer.split('@')[0].split(':')[0];
 
@@ -169,6 +173,11 @@ export default {
       if (!game) {
         return await m.reply.info('No active game to stop.');
       }
+      const senderIsAdmin = await m.isAdmin();
+      const senderIsOwner = await m.isOwner;
+      if (!senderIsAdmin && !senderIsOwner) {
+        return await m.reply.error('Only a group admin or owner can stop the word chain.');
+      }
       deleteGame(m.from);
       return await m.reply.success('🛑 Word chain stopped. All that brainpower, wasted. 😏');
     }
@@ -181,6 +190,9 @@ export default {
       }
 
       const word = args.join(' ').toLowerCase().trim();
+      if (!/^[a-z]+(?:[ -][a-z]+)*$/.test(word)) {
+        return await m.reply.warn('Use letters and spaces only, for example: `wordchain apple`.');
+      }
 
       // Check if it's the player's turn
       if (game.players[game.currentTurn] !== m.sender) {
@@ -191,9 +203,9 @@ export default {
       // Check first letter matches
       const requiredLetter = game.lastWord
         ? getLastLetter(game.lastWord)
-        : word[0]; // First turn accepts any word
+        : game.startLetter;
 
-      if (game.lastWord && word[0] !== requiredLetter) {
+      if (word[0] !== requiredLetter) {
         eliminatePlayer(m.from, sock, db, p, game, m.sender, `Word must start with *${requiredLetter.toUpperCase()}*`);
         return;
       }
@@ -241,6 +253,8 @@ function eliminatePlayer(jid, sock, db, prefix, game, playerJid, reason) {
 
   if (game.timeout) clearTimeout(game.timeout);
 
+  const removedIndex = game.players.indexOf(playerJid);
+  const oldTurn = game.currentTurn;
   game.players = game.players.filter(p => p !== playerJid);
 
   if (game.players.length <= 1) {
@@ -261,7 +275,8 @@ function eliminatePlayer(jid, sock, db, prefix, game, playerJid, reason) {
     return;
   }
 
-  // Fix turn index after removal
+  // Keep the same logical next player when someone before the turn is removed.
+  if (removedIndex >= 0 && removedIndex < oldTurn) game.currentTurn -= 1;
   game.currentTurn = game.currentTurn % game.players.length;
   const nextPlayer = game.players[game.currentTurn];
   const nextLetter = game.lastWord ? getLastLetter(game.lastWord) : null;

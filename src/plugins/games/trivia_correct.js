@@ -4,6 +4,7 @@
  * Invoked by button tap from trivia.js.
  */
 import { grantXp } from '../../economy/leveling.js';
+import { consumeTriviaChallenge } from './triviaState.js';
 
 const REWARD_COINS = 50;
 const REWARD_XP    = 25;
@@ -14,12 +15,12 @@ export default {
   description: 'Internal — trivia correct answer callback',
   cooldown: 0,
   execute: async ({ m, args, db }) => {
-    const expectedSender = args[1];
-    if (expectedSender !== m.sender) {
-      return;
+    const challenge = consumeTriviaChallenge(args[0], { sender: m.sender, chat: m.from });
+    if (!challenge) {
+      return await m.reply.warn('This trivia answer is invalid, expired, or has already been used. Start a new question with `.trivia`.');
     }
 
-    const answer = Buffer.from(args[0], 'base64').toString('utf-8');
+    const answer = challenge.correctAnswer;
     const userData = db.getUser(m.sender);
     const coins = (userData.coins ?? 0) + REWARD_COINS;
 

@@ -14,6 +14,7 @@
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { actionCard } from '../../lib/interactiveKit.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
+import { createTriviaChallenge } from './triviaState.js';
 
 const CATEGORY_MAP = {
   general:       9,
@@ -81,6 +82,12 @@ export default {
 
       const allAnswers = [correct, ...incorrect].sort(() => Math.random() - 0.5);
       const correctIdx = allAnswers.indexOf(correct);
+      const challengeToken = createTriviaChallenge({
+        sender: m.sender,
+        chat: m.from,
+        correctAnswer: correct,
+        question,
+      });
 
       const labels = ['🅰️', '🅱️', '🅲', '🅳'];
 
@@ -93,8 +100,8 @@ export default {
         }, allAnswers.map((a, i) => ({
           label: `${labels[i]} ${a.slice(0, 20)}${a.length > 20 ? '…' : ''}`,
           cmd: i === correctIdx
-            ? `${p}trivia_correct ${Buffer.from(correct).toString('base64')} ${m.sender}`
-            : `${p}trivia_wrong ${Buffer.from(a).toString('base64')} ${m.sender}`,
+            ? `${p}trivia_correct ${challengeToken}`
+            : `${p}trivia_wrong ${challengeToken}`,
         })), { quoted: m });
       } catch (err) {
         console.warn('[trivia] actionCard failed, text fallback:', err.message);
