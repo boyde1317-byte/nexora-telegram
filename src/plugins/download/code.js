@@ -1,8 +1,8 @@
 /**
  * @file src/plugins/download/code.js
  *
- * .code <url> [path] — pull a whole codebase from a link.
- * The heavy counterpart of .get: .get fetches a page's HTML, .code
+ * .pull <url> [path] — pull a whole codebase from a link.
+ * The heavy counterpart of .get: .get fetches a page's HTML, .pull
  * fetches files and archives and hands them back.
  *
  * Usage:
@@ -41,19 +41,19 @@ const fmtBytes = (n) => {
 };
 
 export default {
-  name: 'code',
-  aliases: ['codebase', 'pull'],
+  name: 'pull',
+  aliases: ['codebase', 'srcpull'],
   category: 'download',
-  description: 'Pull a whole codebase from a link (GitHub repo, MediaFire zip, or any file URL). Usage: .code <url> [path]',
+  description: 'Pull a whole codebase from a link (GitHub repo, MediaFire zip, or any file URL). Usage: .pull <url> [path]',
   cooldown: 10000,
 
   execute: async ({ m, sock, args, prefix }) => {
     const p = prefix || '.';
     const usage = async () => await m.reply.info(
-      `Usage: \`${p}code <url> [file]\`\n\n` +
-      `\`${p}code github.com/user/repo\` — file tree of the repo\n` +
-      `\`${p}code <zip-or-mediafire-url>\` — file tree of the archive\n` +
-      `\`${p}code <url> <filename>\` — sends one file back as a document\n\n` +
+      `Usage: \`${p}pull <url> [file]\`\n\n` +
+      `\`${p}pull github.com/user/repo\` — file tree of the repo\n` +
+      `\`${p}pull <zip-or-mediafire-url>\` — file tree of the archive\n` +
+      `\`${p}pull <url> <filename>\` — sends one file back as a document\n\n` +
       `Also takes any direct file URL (js/json/txt/...) straight to a document.`,
       'PULL CODE'
     );
@@ -83,7 +83,7 @@ export default {
         const hit = findInCodebase(result.files, wanted);
         if (!hit) {
           const tip = wanted.length > 3 ? '' : ' (try a longer, unique part of the path)';
-          return await m.reply.error(`No file matching \`${wanted}\` in this codebase${tip}. Re-run \`${p}code ${url}\` to see the file tree.`, 'PULL CODE');
+          return await m.reply.error(`No file matching \`${wanted}\` in this codebase${tip}. Re-run \`${p}pull ${url}\` to see the file tree.`, 'PULL CODE');
         }
         const [path, data, allMatches] = hit;
         if (allMatches && allMatches.length > 1) {
@@ -114,7 +114,7 @@ export default {
       const title = `📦 ${result.name}`.slice(0, 60);
       const footer =
         `${entries.length} file${entries.length !== 1 ? 's' : ''} · ${fmtBytes(result.totalBytes)} · ${srcLabel}` +
-        (rest > 0 ? `\n+ ${rest} more — pull with \`${p}code ${url} <part-of-path>\`` : `\nPull a file: \`${p}code ${url} <part-of-path>\``);
+        (rest > 0 ? `\n+ ${rest} more — pull with \`${p}pull ${url} <part-of-path>\`` : `\nPull a file: \`${p}pull ${url} <part-of-path>\``);
 
       if (entries.length <= 6 && rows.length) {
         // small codebases read fine as plain text
