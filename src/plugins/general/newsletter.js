@@ -17,6 +17,8 @@
  *   .channel subscribers <link|JID>             — Get subscriber count
  */
 import newsletterManager from '../../newsletter/newsletterManager.js';
+import { channelInviteCaption, getChannelContext } from '../../lib/channelPromo.js';
+import brand from '../../config/brand.js';
 import { richTableCard } from '../../lib/interactiveKit.js';
 
 export default {
@@ -34,7 +36,13 @@ export default {
     if (!action) {
       await m.react('⏳');
       try {
-        await newsletterManager.sendNewsletterInvite(sock, m.from, { forwardingEnabled: true }, { quoted: m });
+        const cctx = getChannelContext();
+        await newsletterManager.sendNewsletterInvite(sock, m.from, {
+          newsletterJid: cctx.jid,
+          name: cctx.name,
+          caption: channelInviteCaption(brand.name),
+          forwardingEnabled: true,
+        }, { quoted: m });
       } catch (err) {
         console.error('Failed to send newsletter invite:', err);
         await _sendHelp(m, p);

@@ -118,6 +118,7 @@ export const menuTemplate = (menuData) => {
 
   // ── Footer ───────────────────────────────────────────────────────────
   lines.push('');
+  lines.push(`╰─ 👑 ${toSmallcaps('Inner Circle')}: {prefix}channel ─⬣`);
   lines.push(`╰─ ${toSmallcaps('Powered by')} ✦ *${toSmallcaps(menuData.botName || brand.name)}* ✦ ─⬣`);
   lines.push(`_Detailed help: {prefix}help <command> · Style picker: {prefix}setmenu_`);
 

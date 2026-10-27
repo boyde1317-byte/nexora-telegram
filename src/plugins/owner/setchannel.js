@@ -34,21 +34,33 @@ export default {
         ? `Current pill: *${current.channelName || current.channelId}*\n\`${current.channelId}\``
         : 'No channel pill set yet.';
       return await m.reply.info(
-        `${cur}\n\n• Set: \`.setchannel <...@newsletter>\`\n• Custom name: \`.setchannel <name> <...@newsletter>\`\n• Remove: \`.setchannel off\`\n\nGrab a channel JID with \`.channel info <link>\` or \`.channel list\`.`,
+        `${cur}\n\n• Set: \`.setchannel <...@newsletter>\`\n• Custom name: \`.setchannel <name> <...@newsletter>\`\n• Remove: \`.setchannel off\`\n• Invite link: \`.setchannel link <url>\`\n\nGrab a channel JID with \`.channel info <link>\` or \`.channel list\`.`,
         '📢 CHANNEL PILL',
       );
     }
 
-    // .setchannel <name> <jid>
-    let jid = null, name = null;
+    // .setchannel link <invite-url> — set the share link used by the
+    // privilege promo (menu footer, welcome text, invite card)
+    if (sub === 'link') {
+      const url = args.slice(1).join('').match(/https?:\/\/\S+/)?.[0];
+      if (!url) return await m.reply.warn('Usage: `.setchannel link <invite-url>` — the share link shown on the Inner Circle promo.');
+      db.setSettings({ channelInvite: url });
+      await m.react('✅');
+      return await m.reply.success(`Inner Circle invite link set: ${url}`);
+    }
+
+    // .setchannel <name> <jid>  (also grabs a stray invite URL, if present)
+    let jid = null, name = null, invite = null;
     for (let i = 0; i < args.length; i++) {
       if (isChannelJid(args[i])) { jid = args[i]; name = args.slice(0, i).join(' ') || null; }
+      const u = args[i].match(/https?:\/\/\S+/);
+      if (u) invite = u[0];
     }
     if (!jid) {
       return await m.reply.warn('That does not look like a channel JID. Expected something like `123456789@newsletter` — get it via `.channel info <link>`.');
     }
 
-    db.setSettings({ channelId: jid, channelName: name || jid.split('@')[0], channelPillOff: false });
+    db.setSettings({ channelId: jid, channelName: name || jid.split('@')[0], ...(invite ? { channelInvite: invite } : {}), channelPillOff: false });
     await m.react('✅');
     return await m.reply.success(`Menu cards will now show the pill: *${name || jid.split('@')[0]}*`);
   },

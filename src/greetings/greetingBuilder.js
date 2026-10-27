@@ -1,3 +1,4 @@
+import { channelPrivilegeBlock } from '../lib/channelPromo.js';
 import { config } from '../../config/index.js';
 
 export const greetingBuilder = {
@@ -15,7 +16,8 @@ export const greetingBuilder = {
       '{memberCount}': variables.memberCount || '1',
       '{date}': now.toLocaleDateString(),
       '{time}': now.toLocaleTimeString(),
-      '{botName}': config.botName || 'NEXORA'
+      '{botName}': config.botName || 'NEXORA',
+      '{channel}': channelPrivilegeBlock(variables.prefix || '.')
     };
 
     for (const [key, value] of Object.entries(replacements)) {

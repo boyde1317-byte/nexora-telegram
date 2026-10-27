@@ -11,7 +11,7 @@ const defaultGreetingConfig = {
   enabled: false,
   goodbyeEnabled: false,
   style: 4,
-  welcomeText: "👋 Welcome {user} to *{group}*!\n\nWe are glad to have you here. You are our {memberCount}th member! ✨",
+  welcomeText: "👋 Welcome {user} to *{group}*!\n\nWe are glad to have you here. You are our {memberCount}th member! ✨\n\n👑 You made the cut — claim your Inner Circle spot: {channel}",
   goodbyeText: "😢 Goodbye {user}! We will miss you.",
   welcomeImage: "https://media.base44.com/images/public/6a6ffc9ec8a196324ba9ee95/6e8441439_generated_image.png",
   goodbyeImage: "https://media.base44.com/images/public/6a6ffc9ec8a196324ba9ee95/02ebca731_generated_image.png"
