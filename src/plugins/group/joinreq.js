@@ -13,6 +13,7 @@
  * Uses the fork's groupRequestParticipantsList / groupRequestParticipantsUpdate
  * (approve | reject) / groupJoinApprovalMode primitives.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { actionCardWithAd } from '../../lib/interactiveKit.js';
 
 const bare = (jid) => String(jid).split('@')[0].split(':')[0];
@@ -103,7 +104,7 @@ export default {
         const lines = [
           `${action === 'approve' ? '✅' : '🚫'} *${action.toUpperCase()}D ${ok.length} REQUEST${ok.length !== 1 ? 'S' : ''}*`,
           '',
-          ...ok.slice(0, 15).map((r) => `• ${bare(r.jid)}`),
+          ...(await Promise.all(ok.slice(0, 15).map(async (r) => { const id = await resolveDisplayIdentity(sock, r.jid, m.from); return `• ${id.number ? '+' + id.number : id.label}`; }))),
           ...(ok.length > 15 ? [`… and ${ok.length - 15} more`] : []),
           ...(fail.length ? ['', `⚠️ ${fail.length} could not be processed (already handled or not pending).`] : []),
         ];
@@ -136,11 +137,14 @@ export default {
       ], { title: 'JOIN REQUESTS', body: 'Queue empty' }, { quoted: m });
     }
 
-    const rows = requests.map((r) => [
-      bare(r.jid),
-      (r.name || r.pushName || '-').slice(0, 24),
-      (r.method || r.addMethod || '-').replace(/_/g, ' ').slice(0, 16),
-    ]);
+    const rows = await Promise.all(requests.map(async (r) => {
+      const id = await resolveDisplayIdentity(sock, r.jid, m.from);
+      return [
+        id.number ? '+' + id.number : id.label,
+        (r.name || r.pushName || '-').slice(0, 24),
+        (r.method || r.addMethod || '-').replace(/_/g, ' ').slice(0, 16),
+      ];
+    }));
 
     return await actionCardWithAd(sock, m.from, {
       text: `📋 *JOIN REQUEST QUEUE* — *${requests.length}* waiting\n\n${rows.slice(0, 12).map((r) => `• ${r[0]}${r[1] !== '-' ? ` — ${r[1]}` : ''}`).join('\n')}${requests.length > 12 ? `\n… and ${requests.length - 12} more` : ''}${gateOn === false ? '\n\n⚠️ Gate is *off* — approve anyway to let them in now.' : ''}`,

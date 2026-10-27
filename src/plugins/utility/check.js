@@ -19,6 +19,7 @@
  * notes.
  */
 
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { checkNumber, BAN_STATUS_TEXT, TOKENLESS_UA } from '../../lib/bancheck.js';
 
 export default {
@@ -34,8 +35,12 @@ export default {
     const mention = m.msg?.contextInfo?.mentionedJid?.[0] || m.mentionedJid?.[0];
     const quoted = m.quoted?.sender;
     let target = digits;
-    if (!target && mention) target = String(mention).split('@')[0];
-    if (!target && quoted) target = String(quoted).split('@')[0];
+    if (!target && (mention || quoted)) {
+      const srcJid = mention || quoted;
+      const id = await resolveDisplayIdentity(sock, srcJid, m.isGroup ? m.from : null);
+      if (id.number) target = id.number;
+      else return m.reply.warn('That member is only reachable by an internal account ID — their number can\'t be checked directly.');
+    }
 
     if (!target || target.replace(/\D/g, '').length < 7) {
       return m.reply.warn(

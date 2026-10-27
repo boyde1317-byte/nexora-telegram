@@ -10,7 +10,7 @@ export const profileTemplate = (profileData) => {
 
   // ── User Identity ──────────────────────────────────────────────────
   lines.push(asciiBuilder.statRow('Name', profileData.name || 'Unknown User', '\u{1F464}'));
-  lines.push(asciiBuilder.statRow('Number', `@${profileData.jid?.split('@')[0] || 'N/A'}`, '\u{1F4F1}'));
+  lines.push(asciiBuilder.statRow('Number', `@${profileData.number || (String(profileData.jid || '').endsWith('@lid') ? 'hidden' : (profileData.jid || 'N/A').split('@')[0])}`, '\u{1F4F1}'));
   lines.push(asciiBuilder.statRow('Status', profileData.status || 'Active Member', '\u{1F3C5}'));
   lines.push(asciiBuilder.statRow('Registered', profileData.registeredDate || 'Today', '\u{1F4C5}'));
 

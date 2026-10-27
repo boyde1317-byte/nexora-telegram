@@ -1,3 +1,4 @@
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { buildEnrichedContextInfo } from '../../lib/enrichContext.js'
 import { listStickerCommands } from '../../lib/stickerCommand.js'
 import { replyTable } from '../../lib/cosmetics.js'
@@ -19,7 +20,7 @@ export default {
       )
     }
 
-    const rows = all.map(e => [`.${e.command}`, e.shortHash, e.addedBy.split('@')[0]])
+    const rows = await Promise.all(all.map(async (e) => { const id = await resolveDisplayIdentity(sock, e.addedBy, null); return [`.${e.command}`, e.shortHash, id.number ? '+' + id.number : id.label]; }))
 
     await replyTable(m, sock, {
       caption: `REGISTERED STICKER COMMANDS (${all.length})`,

@@ -19,6 +19,7 @@
  * Owner-only: Yes (only existing owners can manage sudo owners)
  */
 
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { config } from '../../../config/index.js';
 import { db } from '../../database/db.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
@@ -63,19 +64,18 @@ function isSudoOwner(num) {
 }
 
 /** Resolve the target JID from args or mention or quoted message */
-function resolveTarget(args, m) {
+async function resolveTarget(sock, args, m) {
   // Priority: mentioned JID > quoted sender > raw number from args
-  if (m.mentioned?.length > 0) {
-    const jid = m.mentioned[0];
-    const num = sanitizeNumber(jid.split('@')[0]);
-    return { jid, number: num };
-  }
+  const resolveJid = async (jid) => {
+    if (String(jid).endsWith('@lid')) {
+      const id = await resolveDisplayIdentity(sock, jid, m.isGroup ? m.from : null);
+      return { jid, number: id.number || null };
+    }
+    return { jid, number: sanitizeNumber(jid.split('@')[0]) };
+  };
+  if (m.mentioned?.length > 0) return await resolveJid(m.mentioned[0]);
 
-  if (m.quoted?.sender) {
-    const jid = m.quoted.sender;
-    const num = sanitizeNumber(jid.split('@')[0]);
-    return { jid, number: num };
-  }
+  if (m.quoted?.sender) return await resolveJid(m.quoted.sender);
 
   // Try to parse a raw number from args
   const rawArg = args[0] || '';
@@ -86,8 +86,8 @@ function resolveTarget(args, m) {
 
 // ── Sub-command handlers ─────────────────────────────────────────────────────
 
-async function handleAddOwner({ m, args }) {
-  const target = resolveTarget(args, m);
+async function handleAddOwner({ m, sock, args }) {
+  const target = await resolveTarget(sock, args, m);
   if (!target) {
     return await m.reply.error(
       'Usage: `.addowner <number>` or `.addowner @user`\nExample: `.addowner 2335XXXXXXXXX`'
@@ -113,7 +113,7 @@ async function handleAddOwner({ m, args }) {
 
   // Add to database
   const owners = getSudoOwners();
-  const addedBy = sanitizeNumber(m.sender.split('@')[0]);
+  const addedBy = ((await resolveDisplayIdentity(sock, m.sender, m.isGroup ? m.from : null)).number || sanitizeNumber(m.sender.split('@')[0]));
   owners.push({
     number,
     name: '',
@@ -138,8 +138,8 @@ async function handleAddOwner({ m, args }) {
   });
 }
 
-async function handleDelOwner({ m, args }) {
-  const target = resolveTarget(args, m);
+async function handleDelOwner({ m, sock, args }) {
+  const target = await resolveTarget(sock, args, m);
   if (!target) {
     return await m.reply.error(
       'Usage: `.delowner <number>` or `.delowner @user`\nExample: `.delowner 2335XXXXXXXXX`'
@@ -164,7 +164,7 @@ async function handleDelOwner({ m, args }) {
   const owners = getSudoOwners().filter(o => o.number !== number);
   setSudoOwners(owners);
 
-  const removedBy = sanitizeNumber(m.sender.split('@')[0]);
+  const removedBy = ((await resolveDisplayIdentity(sock, m.sender, m.isGroup ? m.from : null)).number || sanitizeNumber(m.sender.split('@')[0]));
   const lines = [
     `🗑️ Sudo owner removed`,
     ``,

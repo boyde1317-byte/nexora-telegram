@@ -25,6 +25,7 @@
  * one active call per account).
  */
 
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { VoipClient } from 'baileys';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -56,12 +57,17 @@ function dropVoipSession(sock) {
 }
 
 /** Resolve the call target: mention → replied sender → raw number. */
-function resolveTarget(m, args) {
+async function resolveTarget(sock, m, args, groupJid) {
   const mentioned = m.mentionedJid?.[0];
-  if (mentioned) return { number: mentioned.split('@')[0].split(':')[0], label: mentioned };
+  const fromJid = async (jid) => {
+    // a LID is not dialable — resolve it to the real phone first
+    const id = await resolveDisplayIdentity(sock, jid, groupJid);
+    return id.number ? { number: id.number, label: id.number ? '+' + id.number : id.label } : null;
+  };
+  if (mentioned) return await fromJid(mentioned);
   const replied = m.quoted?.sender || m.quoted?.participant;
   if (replied && (String(replied).endsWith('@s.whatsapp.net') || String(replied).includes('@lid'))) {
-    return { number: replied.split('@')[0].split(':')[0], label: replied };
+    return await fromJid(replied);
   }
   const raw = (args.find(a => /^\+?\d{7,15}$/.test(a.replace(/\D/g, '')) && a.replace(/\D/g, '').length >= 7) || '');
   const digits = raw.replace(/\D/g, '');
@@ -124,7 +130,7 @@ export default {
       }
 
       // ── .call ────────────────────────────────────────────────────────
-      const target = resolveTarget(m, args);
+      const target = await resolveTarget(sock, m, args, m.from);
       if (!target) {
         return await m.reply.error(
           `Invalid format. Usage: \`${p}call +233XXXXXXXXX [seconds]\` — or mention a user, or reply to their message. Reply to an audio/voice note to play it into the call.`

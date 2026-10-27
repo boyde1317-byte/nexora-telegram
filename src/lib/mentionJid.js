@@ -38,5 +38,8 @@ export async function resolveMentionJid(sock, jid, groupJid) {
 }
 
 export function mentionLabel(jid) {
-  return `@${normaliseJid(jid).split('@')[0].split(':')[0]}`;
+  const norm = normaliseJid(jid);
+  // A LID is opaque — never print its digits; the mention still highlights them.
+  if (norm.endsWith('@lid')) return '@member';
+  return `@${norm.split('@')[0]}`;
 }

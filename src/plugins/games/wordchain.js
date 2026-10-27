@@ -11,6 +11,7 @@
  *   .wordchain stop        — Stop the current game (owner/admin only)
  *   .wordchain <word>      — Submit your word when it's your turn
  */
+import { resolveDisplayIdentity, resolveManyIdentities, mentionChip } from '../../lib/identity.js';
 import { mixedCard, richTableCard } from '../../lib/interactiveKit.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
 import { grantXp } from '../../economy/leveling.js';
@@ -66,12 +67,14 @@ export default {
       const rows = game.players.map(jid => ({ jid, n: log.filter(e => e.sender === jid).length }));
       if (!log.length) return await m.reply.info('No words played yet — the table fills as the chain grows.');
       await m.react('🏆');
+      const wcIds = await resolveManyIdentities(sock, game.players, m.from);
+      const wcLabel = (jid) => { const id = wcIds.get(jid); return id?.number ? '+' + id.number : (id?.label || 'player'); };
       return await richTableCard(sock, m.from, {
         title: `🏆 WORD CHAIN — SCORES (${log.length} word${log.length !== 1 ? 's' : ''})`,
         headers: ['#', 'Player', 'Words', 'Last word'],
         rows: rows.sort((a, b) => b.n - a.n).map((r, i) => [
           String(i + 1),
-          '+' + r.jid.split('@')[0].split(':')[0],
+          wcLabel(r.jid),
           String(r.n),
           (log.filter(e => e.sender === r.jid).slice(-1)[0]?.word || '—'),
         ]),
@@ -128,7 +131,7 @@ export default {
 
       game.players.push(m.sender);
 
-      const playerNums = game.players.map(jid => `+${jid.split('@')[0].split(':')[0]}`).join(', ');
+      const playerNums = (await Promise.all(game.players.map(j => resolveDisplayIdentity(sock, j, m.from)))).map(id => id.number ? '+' + id.number : id.label).join(', ');
       await m.reply(`🔗 Player joined! (${game.players.length}/${MAX_PLAYERS})\nPlayers: ${playerNums}\n\nType \`${p}wordchain go\` when everyone's ready!`);
     }
 
@@ -154,13 +157,14 @@ export default {
       const startLetter = String.fromCharCode(97 + Math.floor(Math.random() * 26));
       game.startLetter = startLetter;
       const currentPlayer = game.players[0];
-      const playerNum = currentPlayer.split('@')[0].split(':')[0];
+      const goId = await resolveDisplayIdentity(sock, currentPlayer, m.from);
+      const playerNum = goId.number ? '+' + goId.number : goId.label;
 
       // Set turn timeout
       setTurnTimeout(m.from, sock, db, p);
 
       return await mixedCard(sock, m.from, {
-        text: `🔗 *WORD CHAIN — GO!*\n\nStarting letter: *${startLetter.toUpperCase()}*\n\n👤 Current turn: +${playerNum}\n\nType a word starting with *${startLetter.toUpperCase()}* — use \`${p}wordchain <word>\`\n⏱️ 30s per turn. Don\'t blank out. ✦`,
+        text: `🔗 *WORD CHAIN — GO!*\n\nStarting letter: *${startLetter.toUpperCase()}*\n\n👤 Current turn: ${playerNum}\n\nType a word starting with *${startLetter.toUpperCase()}* — use \`${p}wordchain <word>\`\n⏱️ 30s per turn. Don\'t blank out. ✦`,
         footer: `${game.players.length} players • Last one standing wins ${WIN_COINS} 🪙`,
       }, [
         { kind: 'action', label: '🛑 Stop Game', cmd: `${p}wordchain stop` },
@@ -197,7 +201,8 @@ export default {
       // Check if it's the player's turn
       if (game.players[game.currentTurn] !== m.sender) {
         const currentPlayer = game.players[game.currentTurn];
-        return await m.reply.warn(`It's not your turn! Current turn: +${currentPlayer.split('@')[0].split(':')[0]}`);
+        const turnId = await resolveDisplayIdentity(sock, currentPlayer, m.from);
+        return await m.reply.warn(`It's not your turn! Current turn: ${turnId.number ? '+' + turnId.number : turnId.label}`);
       }
 
       // Check first letter matches
@@ -230,7 +235,8 @@ export default {
       const nextLetter = getLastLetter(word);
       const wordCount = game.words.length;
       const streakNote = wordCount >= 10 ? ' 🔥 This chain is getting long!' : wordCount >= 5 ? ' ✦ Nice chain!' : '';
-      await m.reply(`✅ *${word}* accepted!${streakNote}\n\n👤 Next: +${nextPlayer.split('@')[0].split(':')[0]} — word starts with *${nextLetter?.toUpperCase()}*`);
+      const accNextId = await resolveDisplayIdentity(sock, nextPlayer, m.from);
+      await m.reply(`✅ *${word}* accepted!${streakNote}\n\n👤 Next: ${accNextId.number ? '+' + accNextId.number : accNextId.label} — word starts with *${nextLetter?.toUpperCase()}*`);
     }
   }
 };
@@ -248,8 +254,9 @@ function setTurnTimeout(jid, sock, db, prefix) {
   }, TURN_TIMEOUT_MS);
 }
 
-function eliminatePlayer(jid, sock, db, prefix, game, playerJid, reason) {
-  const playerNum = playerJid.split('@')[0].split(':')[0];
+async function eliminatePlayer(jid, sock, db, prefix, game, playerJid, reason) {
+  const elimId = await resolveDisplayIdentity(sock, playerJid, jid.endsWith('@g.us') ? jid : null);
+  const playerNum = elimId.number ? '+' + elimId.number : elimId.label;
 
   if (game.timeout) clearTimeout(game.timeout);
 
@@ -263,13 +270,13 @@ function eliminatePlayer(jid, sock, db, prefix, game, playerJid, reason) {
     deleteGame(jid);
 
     if (winner) {
-      const winnerNum = winner.split('@')[0].split(':')[0];
+      const winnerNum = (await resolveDisplayIdentity(sock, winner, jid.endsWith('@g.us') ? jid : null)).number || 'winner';
       const userData = db.getUser(winner);
       const coins = (userData.coins ?? 0) + WIN_COINS;
       grantXp(db, winner, { xp: WIN_XP, coins: WIN_COINS });
 
       sock.sendMessage(jid, {
-        text: `🏆 *WORD CHAIN — GAME OVER!*\n\n👤 +${playerNum} is out: ${reason}\n\n🎉 *Winner: +${winnerNum}!* 🧠\nWordsmith extraordinaire.\n🪙 +${WIN_COINS} coins\n✨ +${WIN_XP} XP\n\nType \`${prefix}wordchain start\` to play again!`,
+        text: `🏆 *WORD CHAIN — GAME OVER!*\n\n👤 ${playerNum} is out: ${reason}\n\n🎉 *Winner: +${winnerNum}!* 🧠\nWordsmith extraordinaire.\n🪙 +${WIN_COINS} coins\n✨ +${WIN_XP} XP\n\nType \`${prefix}wordchain start\` to play again!`,
       });
     }
     return;
@@ -281,8 +288,9 @@ function eliminatePlayer(jid, sock, db, prefix, game, playerJid, reason) {
   const nextPlayer = game.players[game.currentTurn];
   const nextLetter = game.lastWord ? getLastLetter(game.lastWord) : null;
 
+  const nextId = await resolveDisplayIdentity(sock, nextPlayer, jid.endsWith('@g.us') ? jid : null);
   sock.sendMessage(jid, {
-    text: `❌ +${playerNum} is out: ${reason}\n\n${game.players.length} players remaining.\n\n👤 Next: +${nextPlayer.split('@')[0].split(':')[0]}${nextLetter ? ` — word starts with *${nextLetter.toUpperCase()}*` : ''}`,
+    text: `❌ ${playerNum} is out: ${reason}\n\n${game.players.length} players remaining.\n\n👤 Next: ${nextId.number ? '+' + nextId.number : nextId.label}${nextLetter ? ` — word starts with *${nextLetter.toUpperCase()}*` : ''}`,
   });
 
   setTurnTimeout(jid, sock, db, prefix);

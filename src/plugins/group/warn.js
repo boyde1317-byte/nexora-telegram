@@ -5,6 +5,7 @@
  * the user is automatically removed from the group (if bot is admin).
  * Warnings expire after the configured time (default 24 hours).
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { db } from '../../database/db.js';
 import { config } from '../../../config/index.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
@@ -67,7 +68,8 @@ export default {
 
     db.setGroup(m.from, { warnings, warnTimes });
 
-    const targetNum = targetJid.split('@')[0].split(':')[0];
+    const targetId = await resolveDisplayIdentity(sock, targetJid, m.from);
+    const targetNum = targetId.number || null;
     const threshold = config.moderation?.antilinkWarnThreshold || 3;
 
     if (userWarns >= threshold) {
@@ -78,7 +80,7 @@ export default {
         db.setGroup(m.from, { warnings });
         return await m.reply(
           asciiBuilder.box('Warning — Removal', [
-            `🚫 @${targetNum} has been removed`,
+            `🚫 ${targetNum ? '@' + targetNum : targetId.label} has been removed`,
             `▸ Warnings: ${threshold}/${threshold}`,
             `▸ Reason: ${reason}`,
           ]),
@@ -87,7 +89,7 @@ export default {
       } catch (_) {
         return await m.reply(
           asciiBuilder.box('Warning', [
-            `⚠️ @${targetNum} reached ${userWarns}/${threshold} warnings`,
+            `⚠️ ${targetNum ? '@' + targetNum : targetId.label} reached ${userWarns}/${threshold} warnings`,
             `▸ Reason: ${reason}`,
             `▸ Cannot remove — bot is not a group admin`,
           ]),

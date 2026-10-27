@@ -12,6 +12,7 @@
  * UX: Fixed broken implementation that demoted users instead of muting.
  * Now properly saves/restores group state and tracks active timeouts.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { mixedCard } from '../../lib/interactiveKit.js';
 
 // Track active timeouts per group so we can restore settings properly
@@ -124,11 +125,12 @@ export default {
       );
     }
 
-    const targetNum = targetJid.split('@')[0].split(':')[0];
+    const targetId = await resolveDisplayIdentity(sock, targetJid, m.from);
+    const targetNum = targetId.number || null;
     const durationStr = formatDuration(durationMs);
 
     await mixedCard(sock, m.from, {
-      text: `🔇 *USER TIMED OUT*\n\n👤 +${targetNum}\n⏰ Duration: *${durationStr}*\n\nThe group is temporarily set to admin-only mode. It will automatically reopen when the timeout expires.`,
+      text: `🔇 *USER TIMED OUT*\n\n👤 ${targetNum ? '+' + targetNum : targetId.label}\n⏰ Duration: *${durationStr}*\n\nThe group is temporarily set to admin-only mode. It will automatically reopen when the timeout expires.`,
       footer: 'NEXORA • Timeout',
     }, [
       { kind: 'action', label: '🔊 Unmute Now', cmd: `${p}unmute` },
@@ -141,7 +143,7 @@ export default {
         // Restore the original group setting
         await sock.groupSettingUpdate(m.from, previousSetting);
         await sock.sendMessage(m.from, {
-          text: `🔊 +${targetNum}'s timeout has expired. The group is back to normal.`,
+          text: `🔊 ${targetNum ? '+' + targetNum : (targetLabel || 'The user')}'s timeout has expired. The group is back to normal.`,
         });
       } catch (_) {
         // If restore fails, try opening the group at minimum
@@ -155,6 +157,6 @@ export default {
       activeTimeouts.delete(m.from);
     }, durationMs);
 
-    activeTimeouts.set(m.from, { targetJid, targetNum, timer, previousSetting });
+    activeTimeouts.set(m.from, { targetJid, targetNum, targetLabel: targetId.label, timer, previousSetting });
   }
 };

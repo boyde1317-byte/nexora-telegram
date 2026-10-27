@@ -5,6 +5,7 @@
  * More crew = better odds. The group-call energy of Nexora's economy.
  */
 
+import { resolveDisplayIdentity, resolveManyIdentities, mentionChip } from '../../lib/identity.js';
 import { db } from '../../database/db.js';
 import { withUserLock } from '../../economy/leveling.js';
 import { commitAction } from '../../economy/actions.js';
@@ -38,6 +39,8 @@ async function resolveHeist(sock, m, job) {
     // vault: entry fees x3 + a random vault bonus, split evenly
     const vault = crew.length * ENTRY_FEE * 3 + Math.floor(Math.random() * 1500);
     const share = Math.floor(vault / crew.length);
+    const crewIds = await resolveManyIdentities(sock, crew, job.chatId);
+    const crewChip = jid => { const id = crewIds.get(jid); return id?.number ? '@' + id.number : (id?.label || '@member'); };
     const rows = [];
     for (const jid of crew) {
       const u = db.getUser(jid);
@@ -47,9 +50,9 @@ async function resolveHeist(sock, m, job) {
         stats: { heists: (u.stats?.heists ?? 0) + 1, heistWins: (u.stats?.heistWins ?? 0) + 1 },
         quest: 'heistWins',
       });
-      rows.push([`@${jid.split('@')[0]}`, `+${share.toLocaleString()} (now ${(result.after.coins ?? 0).toLocaleString()})`]);
+      rows.push([crewChip(jid), `+${share.toLocaleString()} (now ${(result.after.coins ?? 0).toLocaleString()})`]);
       for (const line of lines) {
-        await sock.sendMessage(job.chatId, { text: `${line}\n@${jid.split('@')[0]}`, mentions: [jid] }).catch(() => {});
+        await sock.sendMessage(job.chatId, { text: `${line}\n${crewChip(jid)}`, mentions: [crewIds.get(jid)?.phoneJid || jid] }).catch(() => {});
       }
     }
     try {
@@ -66,7 +69,7 @@ async function resolveHeist(sock, m, job) {
     } catch (_) {
       await sock.sendMessage(job.chatId, {
         text: `🏦 *HEIST SUCCESSFUL!* The crew of ${crew.length} split ${vault.toLocaleString()} coins.\n` +
-          crew.map(j => `@${j.split('@')[0]} +${share.toLocaleString()}`).join('\n'),
+          crew.map(j => `${crewChip(j)} +${share.toLocaleString()}`).join('\n'),
         mentions: crew,
       }).catch(() => {});
     }
@@ -82,7 +85,7 @@ async function resolveHeist(sock, m, job) {
     }
     await sock.sendMessage(job.chatId, {
       text: `🚨 *THE HEIST FAILED!* Alarm tripped — everyone's cut of ${ENTRY_FEE} coins is gone with the wind.` +
-        (busted.length ? `\n🚔 Busted & jailed: ${busted.map(j => '@' + j.split('@')[0]).join(', ')}` : '\n💨 Everyone escaped the cops... this time.'),
+        (busted.length ? `\n🚔 Busted & jailed: ${busted.map(j => crewChip(j)).join(', ')}` : '\n💨 Everyone escaped the cops... this time.'),
       mentions: busted,
     }).catch(() => {});
   }
@@ -128,7 +131,7 @@ export default {
             db.setUser(m.sender, { coins: (u.coins ?? 0) - ENTRY_FEE });
             const left = Math.ceil((JOIN_WINDOW_MS - (now - existing.startedAt)) / 1000);
             await sock.sendMessage(m.from, {
-              text: `🎭 *@${m.sender.split('@')[0]}* joined the *${existing.crew.length}/${MAX_CREW}* crew! Job starts in *${left}s* — type *${p}heist join*!`,
+              text: `🎭 *${(await mentionChip(sock, m.sender, m.from)).label}* joined the *${existing.crew.length}/${MAX_CREW}* crew! Job starts in *${left}s* — type *${p}heist join*!`,
               mentions: [m.sender],
             }, { quoted: m }).catch(() => {});
             return;
@@ -158,7 +161,7 @@ export default {
           await sock.sendMessage(m.from, {
             text:
               `🏦 *A HEIST IS BEING PLANNED!*\n\n` +
-              `*@${m.sender.split('@')[0]}* is putting a crew together.\n` +
+              `*${(await mentionChip(sock, m.sender, m.from)).label}* is putting a crew together.\n` +
               `💰 Entry: ${ENTRY_FEE} coins\n` +
               `⏳ Doors close in *90 seconds*\n\n` +
               `Type *${p}heist join* to get a cut! Crew odds: ${crewChance(2)}%+`,

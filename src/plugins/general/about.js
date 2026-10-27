@@ -28,6 +28,7 @@
  * proven category-picker payload instead of duplicating it.
  */
 
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import os from 'os';
 import { db } from '../../database/db.js';
 import { client } from '../../core/client.js';
@@ -119,9 +120,8 @@ export default {
       : `Today at ${timeStr}`;
     const commandsUsed  = userData.commandsUsed  || 0;
     const badges        = m.isOwner ? 'Owner' : (userData.premium ? 'Premium' : 'Member');
-    const senderNum     = m.senderNumber || m.sender?.split('@')[0] || '';
-
-    // ── Stats counts ───────────────────────────────────────────────────────
+    const aboutId = await resolveDisplayIdentity(sock, m.sender, m.isGroup ? m.from : null);
+    const senderNum = aboutId.number || m.senderNumber || '';    // ── Stats counts ───────────────────────────────────────────────────────
     const dbData     = db.data;
     const totalUsers  = Object.keys(dbData.users  || {}).length;
     const totalGroups = Object.keys(dbData.groups || {}).length;
@@ -133,7 +133,7 @@ export default {
 
     // ── Body: greeting + date/time ONLY — renders as normal text ───────────
     const bodyText =
-      `${getGreeting()}, @${senderNum}\n` +
+      `${getGreeting()}, ${senderNum ? '@' + senderNum : aboutId.label}\n` +
       `${dateStr} · ${timeStr}`;
 
     // ── Footer: USER/SYSTEM stats — this is what WhatsApp renders grey ─────

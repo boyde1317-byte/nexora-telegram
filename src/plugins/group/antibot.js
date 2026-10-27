@@ -21,6 +21,7 @@
  *
  * Admins, the bot owner and paired sessions are always exempt.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { selectMenu, actionCardWithAd, richTableCard } from '../../lib/interactiveKit.js';
 import { getBrandThumbnail } from '../../lib/cosmetics.js';
 import { isBotName } from '../../lib/botDetector.js';
@@ -55,18 +56,18 @@ export default {
         : wl.filter((x) => x !== target);
 
       if (sub === 'whitelist' && has) {
-        return await m.reply.warn(`@${target.split('@')[0]} is already whitelisted.`, { mentions: [target] });
+        return await m.reply.warn(`${(await mentionChip(sock, target, m.from)).label} is already whitelisted.`, { mentions: [target] });
       }
       if (sub === 'unwhitelist' && !has) {
-        return await m.reply.warn(`@${target.split('@')[0]} is not on the antibot whitelist.`, { mentions: [target] });
+        return await m.reply.warn(`${(await mentionChip(sock, target, m.from)).label} is not on the antibot whitelist.`, { mentions: [target] });
       }
 
       const on = groupData.antibot?.on ?? false;
       db.setGroup(m.from, { antibot: { on, whitelist: nextWl } });
 
       const resultText = sub === 'whitelist'
-        ? `✅ *@${target.split('@')[0]} is now EXEMPT from anti-bot enforcement.*\n\nThey will never be flagged as a bot in this group.`
-        : `⚠️ *@${target.split('@')[0]} is no longer whitelisted.*\n\nAnti-bot scoring applies to them again.`;
+        ? `✅ *${(await mentionChip(sock, target, m.from)).label} is now EXEMPT from anti-bot enforcement.*\n\nThey will never be flagged as a bot in this group.`
+        : `⚠️ *${(await mentionChip(sock, target, m.from)).label} is no longer whitelisted.*\n\nAnti-bot scoring applies to them again.`;
 
       const thumbnailUrl = await getBrandThumbnail();
       return await actionCardWithAd(sock, m.from, {
@@ -87,7 +88,7 @@ export default {
       return await richTableCard(sock, m.from, {
         title: '✅ ANTI-BOT WHITELIST',
         headers: ['#', 'Member'],
-        rows: wl.map((j, i) => [String(i + 1), `+${j.split('@')[0]}`]),
+        rows: await Promise.all(wl.map(async (j, i) => { const id = await resolveDisplayIdentity(sock, j, m.from); return [String(i + 1), id.number ? '+' + id.number : id.label]; })),
         footer: groupData.antibot?.on ? 'Protection is ON' : 'Protection is OFF',
       }, { quoted: m });
     }

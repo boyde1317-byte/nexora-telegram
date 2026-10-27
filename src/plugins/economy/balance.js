@@ -4,6 +4,7 @@
  * Lightweight alternative to .profile when you just want the numbers.
  * Profile has full detail + card; balance is the 2-second glance.
  */
+import { resolveDisplayIdentity } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
 import { getLevelProgress, progressBar, rankBadge } from '../../economy/leveling.js';
@@ -34,7 +35,8 @@ export default {
         ...(userData.streak ? [`${userData.streak >= 7 ? '🔥' : '✨'} Streak    : ${userData.streak} day${userData.streak !== 1 ? 's' : ''}`] : []),
       ];
 
-      const title = isSelf ? 'YOUR BALANCE' : `BALANCE — +${targetJid.split('@')[0].slice(-6)}`;
+      const targetId = await resolveDisplayIdentity(sock, targetJid, m.isGroup ? m.from : null);
+      const title = isSelf ? 'YOUR BALANCE' : `BALANCE — ${targetId.number ? '+' + targetId.number : targetId.label}`;
       const text = asciiBuilder.box(title, lines);
 
       // Single message reply — removed follow-up action card to prevent double messages.

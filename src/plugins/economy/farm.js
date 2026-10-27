@@ -21,6 +21,7 @@
  *   .farm market           → crop catalog table
  *   .farm upgrade          → buy one more plot (250 × current capacity)
  */
+import { resolveDisplayIdentity } from '../../lib/identity.js';
 import capabilities from '../../core/capabilities.js';
 import { baileysBridge } from '../../core/baileysBridge.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
@@ -77,6 +78,7 @@ export default {
         // ── Rich tier: VIP unified-response envelope (.vipcard pattern) ──
         if (capabilities.richResponse) {
           try {
+            const farmOwnerPhone = (await resolveDisplayIdentity(sock, m.sender, m.from)).number;
             return await sendUnifiedRich(sock, m.from, {
               disclaimer: 'NEXORA Farm',
               submessages: [{ messageType: 2, messageText: `🌾 NEXORA Farm — Farmer ${badge}` }],
@@ -85,7 +87,7 @@ export default {
                   title: `🌾 NEXORA Farm • ${badge}`,
                   brand: 'NEXORA',
                   price: `${coins.toLocaleString()} coins`,
-                  productUrl: 'https://wa.me/' + (m.sender?.split('@')[0] || ''),
+                  productUrl: farmOwnerPhone ? `https://wa.me/${farmOwnerPhone}` : 'https://github.com/boyde1317-byte',
                   imageUrl: 'https://res.cloudinary.com/di2a9lenz/image/upload/v1786909227/omegatech_ai_media/upload-1786909226872.jpg',
                 })),
                 singleSection(markdownText(

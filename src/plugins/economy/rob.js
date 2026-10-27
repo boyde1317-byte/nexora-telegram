@@ -5,6 +5,7 @@
  * classic social risk/reward loop of WhatsApp economies.
  */
 
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { db } from '../../database/db.js';
 import { withUserLock } from '../../economy/leveling.js';
 import { commitAction } from '../../economy/actions.js';
@@ -97,9 +98,10 @@ export default {
                 await m.reply(`🥷 *You stole ${stolen.toLocaleString()} coins!*${lines.length ? '\n' + lines.join('\n') : ''}`);
               }
               // tell the victim with a mention
+              const robChip = await mentionChip(sock, target, m.from);
               await sock.sendMessage(m.from, {
-                text: `@${target.split('@')[0]} — you were *robbed* of 🪙 ${stolen.toLocaleString()} coins! 😱`,
-                mentions: [target],
+                text: `${robChip.label} — you were *robbed* of 🪙 ${stolen.toLocaleString()} coins! 😱`,
+                mentions: [robChip.mentionJid],
               }, { quoted: m }).catch(() => {});
             } else {
               // caught: fine + jail

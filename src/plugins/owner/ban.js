@@ -2,6 +2,7 @@
  * ban.js — Ban a user from using the bot.
  * Owner-only. Banned users are silently blocked from all commands.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { db } from '../../database/db.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
 import { buildEnrichedContextInfo } from '../../lib/enrichContext.js';
@@ -28,9 +29,10 @@ export default {
     if (user.banned) return await m.reply.error('This user is already banned.');
 
     db.setUser(targetJid, { banned: true, banReason: reason });
-    const targetNum = targetJid.split('@')[0].split(':')[0];
+    const targetId = await resolveDisplayIdentity(sock, targetJid, m.isGroup ? m.from : null);
+    const targetNum = targetId.number || targetId.label;
     return await m.reply(asciiBuilder.box('User Banned', [
-      `🚫 @${targetNum} has been banned`,
+      `🚫 ${targetNum} has been banned`,
       `▸ Reason: ${reason}`,
     ]), { mentions: [targetJid], contextInfo: buildEnrichedContextInfo() });
   },

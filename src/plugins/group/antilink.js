@@ -6,6 +6,7 @@
  * When called with on/off/status args, performs the action and shows a
  * nativeFlow result card with follow-up group management buttons.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { selectMenu, actionCardWithAd } from '../../lib/interactiveKit.js';
 import { getBrandThumbnail } from '../../lib/cosmetics.js';
 
@@ -109,7 +110,7 @@ export default {
     db.setUser(m.sender, { warnings });
 
     await sock.sendMessage(m.from, {
-      text: `⚠️ @${m.sender.split('@')[0]}, links are not allowed in this group.\n\n🚨 *Warning ${warnings}/3*${isWaInvite ? '\n\n_Invite links are strictly prohibited._' : ''}`,
+      text: `⚠️ ${(await mentionChip(sock, m.sender, m.from)).label}, links are not allowed in this group.\n\n🚨 *Warning ${warnings}/3*${isWaInvite ? '\n\n_Invite links are strictly prohibited._' : ''}`,
       mentions: [m.sender],
     });
 
@@ -117,7 +118,7 @@ export default {
       try {
         await sock.groupParticipantsUpdate(m.from, [m.sender], 'remove');
         db.setUser(m.sender, { warnings: 0 });
-        await sock.sendMessage(m.from, { text: `🚫 @${m.sender.split('@')[0]} has been removed after 3 link warnings.`, mentions: [m.sender] });
+        await sock.sendMessage(m.from, { text: `🚫 ${(await mentionChip(sock, m.sender, m.from)).label} has been removed after 3 link warnings.`, mentions: [m.sender] });
       } catch (_) {}
     }
   },

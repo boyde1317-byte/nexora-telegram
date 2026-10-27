@@ -1,3 +1,4 @@
+import { resolveDisplayIdentity, resolveManyIdentities, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { mixedCard } from '../../lib/interactiveKit.js';
 
@@ -34,19 +35,22 @@ export default {
       const mentions = m.msg?.contextInfo?.mentionedJid ?? [];
       let nameA, nameB;
 
+      const loveIds = await resolveManyIdentities(sock, [...new Set([...mentions, m.sender])], m.from);
+      const loveLabel = j => { const id = loveIds.get(j); return id?.number ? '+' + id.number : (id?.label || '?'); };
+
       if (mentions.length >= 2) {
-        nameA = '+' + mentions[0].split('@')[0].split(':')[0];
-        nameB = '+' + mentions[1].split('@')[0].split(':')[0];
+        nameA = loveLabel(mentions[0]);
+        nameB = loveLabel(mentions[1]);
       } else if (mentions.length === 1) {
-        nameA = '+' + m.sender.split('@')[0].split(':')[0];
-        nameB = '+' + mentions[0].split('@')[0].split(':')[0];
+        nameA = loveLabel(m.sender);
+        nameB = loveLabel(mentions[0]);
       } else {
         const raw = args.join(' ');
         const parts = raw.split(/[&+|,]/).map(s => s.trim()).filter(Boolean);
         if (parts.length >= 2) {
           [nameA, nameB] = parts;
         } else if (parts.length === 1) {
-          nameA = '+' + m.sender.split('@')[0].split(':')[0];
+          nameA = loveLabel(m.sender);
           nameB = parts[0];
         } else {
           return await m.reply.info(

@@ -7,6 +7,7 @@
  * Shows: number, name (if available), admin status in group, warn count,
  * economy stats (level, coins, XP), AFK status.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { richTableCard } from '../../lib/interactiveKit.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
@@ -37,7 +38,8 @@ export default {
     }
 
     await withReactionStatus(m, async () => {
-      const number = targetJid.split('@')[0].split(':')[0];
+      const targetId = await resolveDisplayIdentity(sock, targetJid, m.from);
+      const number = targetId.number || targetId.label;
       const userData = db.getUser(targetJid);
       const progress = getLevelProgress(userData.xp ?? 0);
       const badge = rankBadge(progress.level);

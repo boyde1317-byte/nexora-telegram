@@ -4,6 +4,7 @@
  * Results are shown in a richResponse table with actionCard follow-up buttons
  * for related lookup and group management commands.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus} from '../../lib/cosmetics.js';
 import { _resolveChannel } from '../general/newsletter.js';
 import { richTableCard, actionCard} from '../../lib/interactiveKit.js';
@@ -93,13 +94,14 @@ export default {
                      :                               'Private / DM';
 
       const senderJid = m.sender;
-      const senderNum = senderJid.split('@')[0].split(':')[0];
+      const senderId = await resolveDisplayIdentity(sock, senderJid, m.isGroup ? m.from : null);
+      const senderNum = senderId.number || null;
 
       const rows = [
         ['Chat Type',   chatType],
         ['Chat JID',    jid],
         ['Your JID',    senderJid],
-        ['Your Number', `+${senderNum}`],
+        ['Your Number', senderNum ? `+${senderNum}` : 'hidden (LID)'],
       ];
 
       if (jid.endsWith('@g.us')) {

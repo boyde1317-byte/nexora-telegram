@@ -12,6 +12,7 @@
  * owner's approval. The pairing code always lands in a PRIVATE chat (the
  * requester's DM), never in the group where the command ran.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { actionCard } from '../../lib/interactiveKit.js';
 import { pairSession, addPairRequest, MAX_EXTRA_SESSIONS } from '../../core/sessionManager.js';
@@ -108,7 +109,8 @@ export default {
     // ── Everyone else: interactive approval flow ──────────────────────────
     // Works from the main bot, a group, or even a paired session.
     const dmJid = m.isGroup ? m.sender : m.from;
-    const name = m.pushName || m.sender?.split('@')[0] || 'unknown';
+    const pairId = await resolveDisplayIdentity(sock, m.sender, m.isGroup ? m.from : null);
+    const name = m.pushName || (pairId.number ? '+' + pairId.number : pairId.label);
     let req;
     try {
       ({ req } = addPairRequest(raw, { dmJid, chatJid: m.from, name }));

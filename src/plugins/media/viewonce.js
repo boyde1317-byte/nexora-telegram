@@ -1,3 +1,5 @@
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
+
 /**
  * viewonce.js — 👁️ View Once reader.
  *
@@ -100,8 +102,8 @@ export default {
         return await m.reply.error('Download failed — the media may have expired from WhatsApp servers.');
       }
 
-      const senderNum = String(m.quoted.sender || m.quoted.participant || '').split('@')[0].split(':')[0];
-      const caption = `👁️ *View Once Revealed* — from +${senderNum}`;
+      const voId = await resolveDisplayIdentity(sock, (m.quoted.sender || m.quoted.participant || ''), m.isGroup ? m.from : null);
+      const caption = `👁️ *View Once Revealed* — from ${voId.number ? '+' + voId.number : voId.label}`;
 
       let payload;
       if (found.type === 'imageMessage')       payload = { image: buffer, caption };

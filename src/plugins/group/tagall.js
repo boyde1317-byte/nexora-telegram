@@ -4,6 +4,7 @@
  * Sends the @-mention announcement, then a nativeFlow follow-up card
  * with group management quick_reply buttons so admins can take action fast.
  */
+import { resolveDisplayIdentity, resolveManyIdentities, mentionChip } from '../../lib/identity.js';
 import { buildEnrichedContextInfo} from '../../lib/enrichContext.js';
 import { withReactionStatus} from '../../lib/cosmetics.js';
 
@@ -27,7 +28,11 @@ export default {
       const customMessage   = args.join(' ') || 'Attention everyone!';
 
       let tagText = `📢 *${customMessage}*\n\n`;
-      participants.forEach(p => { tagText += `@${p.id.split('@')[0]} `; });
+        const tagIds = await resolveManyIdentities(sock, participants.map(p => p.id), m.from);
+        for (const p of participants) {
+          const id = tagIds.get(p.id);
+          tagText += (id?.number ? `@${id.number}` : (id?.pushName ? `@${id.pushName}` : '@member')) + ' ';
+        }
       tagText += `\n\n_Tagged: ${participants.length} member${participants.length !== 1 ? 's' : ''}_`;
 
       // ── Single message: @-mention announcement + branded thumbnail +

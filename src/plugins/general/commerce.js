@@ -30,6 +30,7 @@
  * — no client-side hacks, fully renderable on every WhatsApp client.
  */
 
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { imageManager } from '../../images/imageManager.js';
 import brand from '../../../config/brand.js';
 
@@ -315,7 +316,8 @@ export default {
           text: note
         }, { quoted: m });
 
-        return await m.reply.success(`💳 Payment request sent — *${price.amount} ${price.currency}* → ${String(target).split('@')[0]} (expires in 24h)`);
+        const payId = await resolveDisplayIdentity(sock, target, m.isGroup ? m.from : null);
+        return await m.reply.success(`💳 Payment request sent — *${price.amount} ${price.currency}* → ${payId.number ? '+' + payId.number : payId.label} (expires in 24h)`);
       }
 
             return await m.reply.error(`Unknown subcommand. Try \`${p}product\`, \`${p}ordercard\` or \`${p}pollresult\`.`);

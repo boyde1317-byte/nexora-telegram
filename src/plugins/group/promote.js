@@ -4,6 +4,7 @@
  * Fixed: duplicate `const targetNumber` declaration was crashing the command.
  * Improved: better target resolution order, self-promotion check.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { actionCard } from '../../lib/interactiveKit.js';
 import { config } from '../../../config/index.js';
@@ -37,7 +38,8 @@ export default {
       );
     }
 
-    const targetNumber = target.split('@')[0];
+    const targetId = await resolveDisplayIdentity(sock, target, m.from);
+    const targetNumber = targetId.number || '';
 
     if (target === sock.user.id.split(':')[0] + '@s.whatsapp.net') {
       return await m.reply.error('I\'m already an admin (or trying to be). No need to promote myself.');
@@ -51,10 +53,10 @@ export default {
 
       try {
         return await actionCard(sock, m.from, {
-          text:   `⬆️ *@${targetNumber}* is now a Group Admin. With great power... you know the rest.`,
+          text:   `⬆️ *${targetNumber ? '@' + targetNumber : targetId.label}* is now a Group Admin. With great power... you know the rest.`,
           footer: 'NEXORA • Promoted',
         }, [
-          { label: '⬇️ Demote Again',      cmd: `${p}demote @${targetNumber}` },
+          { label: '⬇️ Demote Again',      cmd: targetNumber ? `${p}demote @${targetNumber}` : `${p}demote` },
           { label: '🚫 Remove Member',     cmd: `${p}kick` },
           { label: '📋 Group Info',         cmd: `${p}groupinfo` },
         ], { quoted: m, mentions: [target] });

@@ -1,3 +1,4 @@
+import { resolveDisplayIdentity, mentionChip } from '../lib/identity.js';
 import { config } from '../../config/index.js';
 import { client } from '../core/client.js';
 import { findCustomCommand } from '../plugins/group/customcmd.js';
@@ -149,10 +150,11 @@ export async function awardMessageXp(m, sock) {
       console.warn('[XP] level-up card failed, plain fallback:', err.message);
     }
 
-    const number = m.sender.split('@')[0].split(':')[0];
+    const levelId = await resolveDisplayIdentity(sock, m.sender, m.isGroup ? m.from : null);
+    const levelChip = levelId.number ? `@${levelId.number}` : levelId.label;
     await m.reply(
       [
-        `🎉 @${number} hit *Level ${level}*! ${badge}`,
+        `🎉 ${levelChip} hit *Level ${level}*! ${badge}`,
         `${bar}${coinBonus > 0 ? ` · 🪙 +${coinBonus.toLocaleString()} coins` : ''}`,
       ].join('\n'),
       { mentions: [m.sender] }
@@ -177,9 +179,10 @@ async function handleViewOnceRescue(rawMessage, sock, jid, sender) {
   if (!voKey) return;
   const inner = raw[voKey].message;
   const type = Object.keys(inner)[0];
-  const num = String(sender).split('@')[0].split(':')[0];
-  const caption = `👁️ *View-once rescued* — from @${num}`;
-  const mentions = [sender];
+  const voId = await resolveDisplayIdentity(sock, sender, isGroupMsg ? jid : null);
+  const voChip = voId.number ? `@${voId.number}` : voId.label;
+  const caption = `👁️ *View-once rescued* — from ${voChip}`;
+  const mentions = [voId.phoneJid || sender];
 
   try {
     const buffer = await downloadMediaMessage(rawMessage, 'buffer', {});
@@ -285,9 +288,10 @@ try {
             const warns = (groupWarns[sender] ?? 0) + 1;
             groupWarns[sender] = warns;
             db.setGroup(jid, { warnings: groupWarns });
-            const senderNum = sender.split('@')[0].split(':')[0];
+            const guardChip = await mentionChip(sock, sender, jid.endsWith('@g.us') ? jid : null);
+            const senderNum = guardChip.label;
             await sock.sendMessage(jid, {
-              text: `🚫 @${senderNum} Links are not allowed in this group!\n⚠️ Warning ${warns}/3${warns >= 3 ? ' — You have been removed.' : ''}`,
+              text: `🚫 ${guardChip.label} Links are not allowed in this group!\n⚠️ Warning ${warns}/3${warns >= 3 ? ' — You have been removed.' : ''}`,
               mentions: [sender],
             });
             if (warns >= 3) {
@@ -298,7 +302,7 @@ try {
               } catch (_) {
                 // Bot lacks admin privileges — keep warnings so spammer is caught next time
                 await sock.sendMessage(jid, {
-                  text: `⚠️ Cannot remove @${senderNum} — bot is not a group admin. Warnings retained.`,
+                  text: `⚠️ Cannot remove ${senderNum} — bot is not a group admin. Warnings retained.`,
                   mentions: [sender],
                 }).catch(() => {});
               }
@@ -335,9 +339,10 @@ try {
             const warns = (groupWarns[sender] ?? 0) + 1;
             groupWarns[sender] = warns;
             db.setGroup(jid, { warnings: groupWarns });
-            const senderNum = sender.split('@')[0].split(':')[0];
+            const guardChip2 = await mentionChip(sock, sender, jid.endsWith('@g.us') ? jid : null);
+            const senderNum = guardChip2.label;
             await sock.sendMessage(jid, {
-              text: `🚫 @${senderNum} Mass-mentioning ${mentioned.length} members at once is not allowed!\n⚠️ Warning ${warns}/3${warns >= 3 ? ' — You have been removed.' : ''}`,
+              text: `🚫 ${guardChip2.label} Mass-mentioning ${mentioned.length} members at once is not allowed!\n⚠️ Warning ${warns}/3${warns >= 3 ? ' — You have been removed.' : ''}`,
               mentions: [sender],
             });
             if (warns >= 3) {
@@ -486,9 +491,10 @@ try {
       if (senderData.afk?.active && !isAfkCommand) {
         db.setUser(sender, { afk: { active: false } });
         const awayFor = formatDuration(Date.now() - senderData.afk.since);
+        const afkBack = await mentionChip(sock, sender, jid.endsWith('@g.us') ? jid : null);
         await sock.sendMessage(jid, {
-          text: `👋 Welcome back @${sender.split('@')[0]}! You were AFK for ${awayFor}.`,
-          mentions: [sender],
+          text: `👋 Welcome back ${afkBack.label}! You were AFK for ${awayFor}.`,
+          mentions: [afkBack.mentionJid],
         }, { quoted: rawMessage }).catch(() => {});
       }
 
@@ -502,9 +508,10 @@ try {
         const targetData = db.getUser(jidCandidate);
         if (targetData.afk?.active) {
           const awayFor = formatDuration(Date.now() - targetData.afk.since);
+          const afkChip = await mentionChip(sock, jidCandidate, jid.endsWith('@g.us') ? jid : null);
           await sock.sendMessage(jid, {
-            text: `💤 @${jidCandidate.split('@')[0]} is AFK (${awayFor} ago): ${targetData.afk.reason}`,
-            mentions: [jidCandidate],
+            text: `💤 ${afkChip.label} is AFK (${awayFor} ago): ${targetData.afk.reason}`,
+            mentions: [afkChip.mentionJid],
           }, { quoted: rawMessage }).catch(() => {});
         }
       }
@@ -584,7 +591,8 @@ try {
       try {
         const custom = findCustomCommand(jid, commandName);
         if (custom) {
-          const senderName = rawMessage.pushName || (sender || '').split('@')[0];
+          const ccId = await resolveDisplayIdentity(sock, sender, jid.endsWith('@g.us') ? jid : null);
+          const senderName = rawMessage.pushName || (ccId.number ? `+${ccId.number}` : ccId.label);
           let chatName = 'this group';
           try { chatName = (await sock.groupMetadata?.(jid))?.subject || chatName; } catch (_) {}
           await m.reply(
@@ -769,8 +777,8 @@ try {
     }
   }
 
-  // Reserve cooldown only once the command is eligible to run. Denied users
-  // should be able to retry immediately after fixing the denial reason.
+  // Reserve the cooldown only after the command is eligible to run. Denied
+  // users should be able to retry immediately after fixing the denial reason.
   client.cooldowns.set(cooldownKey, now);
   setTimeout(() => client.cooldowns.delete(cooldownKey), cooldownMs);
 

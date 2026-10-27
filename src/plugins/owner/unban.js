@@ -1,6 +1,7 @@
 /**
  * unban.js — Unban a user, restoring access to commands.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { db } from '../../database/db.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
 import { buildEnrichedContextInfo } from '../../lib/enrichContext.js';
@@ -23,9 +24,10 @@ export default {
     if (!user.banned) return await m.reply.error('This user is not banned.');
 
     db.setUser(targetJid, { banned: false, banReason: null });
-    const targetNum = targetJid.split('@')[0].split(':')[0];
+    const targetId = await resolveDisplayIdentity(sock, targetJid, m.isGroup ? m.from : null);
+    const targetNum = targetId.number || targetId.label;
     return await m.reply(asciiBuilder.box('User Unbanned', [
-      `✅ @${targetNum} has been unbanned`,
+      `✅ ${targetNum} has been unbanned`,
       `▸ Access restored`,
     ]), { mentions: [targetJid], contextInfo: buildEnrichedContextInfo() });
   },

@@ -19,7 +19,11 @@ function normalizeJid(target) {
   return jid.split(':')[0]; // strip linked-device suffix
 }
 
-const label = jid => '+' + String(jid).split('@')[0].split(':')[0];
+import { resolveDisplayIdentity, resolveManyIdentities } from '../../lib/identity.js';
+
+    // display label for a strike-carrier: phone when resolvable, else a safe name —
+    // never the raw LID digits
+
 
 export default {
   name: 'warns',
@@ -38,20 +42,24 @@ export default {
     if (reset) {
       const jid = normalizeJid(target);
       if (!jid) return await m.reply.warn(`Usage: \`${p}warns reset @user\` — or reply to their message.`);
-      if (!warns[jid]) return await m.reply.info(`*${label(jid)}* carries no protection strikes.`);
+      const who = await resolveDisplayIdentity(sock, jid, m.from);
+      const whoLabel = who.number ? '+' + who.number : who.label;
+      if (!warns[jid]) return await m.reply.info(`*${whoLabel}* carries no protection strikes.`);
       delete warns[jid];
       db.setGroup(m.from, { warnings: warns });
-      return await m.reply.success(`🕊️ Forgiven — cleared *${label(jid)}*'s protection strikes.`);
+      return await m.reply.success(`🕊️ Forgiven — cleared *${whoLabel}*'s protection strikes.`);
     }
 
     // ── single member ──────────────────────────────────────────────────
     if (target) {
       const jid = normalizeJid(target);
       const count = warns[jid] ?? 0;
-      if (!count) return await m.reply.info(`*${label(jid)}* carries no protection strikes. Sparkling record.`);
+      const who = await resolveDisplayIdentity(sock, jid, m.from);
+      const whoLabel = who.number ? '+' + who.number : who.label;
+      if (!count) return await m.reply.info(`*${whoLabel}* carries no protection strikes. Sparkling record.`);
       return await m.reply.info(
-        `*${label(jid)}* is on strike *${count}/3*.\n\nAt 3 the anti-abuse suite removes them. ` +
-        `Forgive with \`${p}warns reset ${label(jid)}\`.`,
+        `*${whoLabel}* is on strike *${count}/3*.\n\nAt 3 the anti-abuse suite removes them. ` +
+        `Forgive with \`${p}warns reset ${whoLabel}\`.`,
         '⚠️ PROTECTION STRIKES',
       );
     }
@@ -64,9 +72,12 @@ export default {
     return await richTableCard(sock, m.from, {
       title: `⚠️ PROTECTION STRIKES (${entries.length})`,
       headers: ['#', 'Member', 'Strikes'],
-      rows: entries
+      rows: await Promise.all(entries
         .sort((a, b) => b[1] - a[1])
-        .map(([jid, c], i) => [String(i + 1), label(jid), `${c}/3`]),
+        .map(async ([jid, c], i) => {
+          const id = await resolveDisplayIdentity(sock, jid, m.from);
+          return [String(i + 1), id.number ? '+' + id.number : id.label, `${c}/3`];
+        })),
       footer: `Forgive with ${p}warns reset @user`,
     }, { quoted: m });
   },

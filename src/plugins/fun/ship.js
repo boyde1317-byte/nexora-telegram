@@ -5,6 +5,7 @@
  * ships the same number — that's the fun.
  */
 
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { db } from '../../database/db.js';
 import { commitAction } from '../../economy/actions.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
@@ -79,9 +80,11 @@ export default {
           }, { quoted: m });
         } catch (err) {
           console.warn('[ship] card render failed, text fallback:', err.message);
+          const shipA = await mentionChip(sock, a, m.isGroup ? m.from : null);
+          const shipB = await mentionChip(sock, b, m.isGroup ? m.from : null);
           await m.reply(
             `💖 *SHIP METER*\n\n` +
-            `@${a.split('@')[0]} 💕 @${b.split('@')[0]}\n\n` +
+            `${shipA.label} 💕 ${shipB.label}\n\n` +
             `*${pct}%* — ${verdict}`,
             { mentions: [a, b] }
           );

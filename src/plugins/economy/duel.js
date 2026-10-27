@@ -8,6 +8,7 @@
  *  .duel stats         — your record
  */
 
+import { resolveDisplayIdentity, resolveManyIdentities, mentionChip } from '../../lib/identity.js';
 import { db } from '../../database/db.js';
 import { createChallenge, getPendingChallenge, declineChallenge, resolveDuel } from '../../economy/duel.js';
 import { getDisplayName } from '../../lib/displayName.js';
@@ -52,12 +53,14 @@ export default {
         const challengerJid = m.mentionedJid?.[0] || m.quoted?.sender;
         try {
           const verdict = await resolveDuel(m.from, challengerJid ?? '', m.sender);
-          const winnerName = await getDisplayName(sock, verdict.winnerJid);
-          const loserName = await getDisplayName(sock, verdict.loserJid);
-          const winNum = verdict.winnerJid.split('@')[0].split(':')[0];
+          const winnerId = await resolveDisplayIdentity(sock, verdict.winnerJid, m.isGroup ? m.from : null);
+          const loserId = await resolveDisplayIdentity(sock, verdict.loserJid, m.isGroup ? m.from : null);
+          const winnerName = winnerId.pushName || winnerId.label;
+          const loserName = loserId.pushName || loserId.label;
+          const winNum = winnerId.number || winnerId.username || '';
           return await m.reply.success(
             `⚔️ *DUEL SETTLED* ⚔️\n\n🪙 Pot: *${verdict.amount.toLocaleString()} coins*\n\n👑 *${winnerName}* takes it all!\n` +
-            `Better luck next time, ${loserName}.\n\n🏅 Winner record: *${verdict.winnerRecord}*\n\n_Type \`${p}duel @${winNum} ${verdict.amount}\` to run it back._`);
+            `Better luck next time, ${loserName}.\n\n🏅 Winner record: *${verdict.winnerRecord}*\n\n_Type ${winNum ? `\`${p}duel @${winNum} ${verdict.amount}\`` : `\`${p}duel\``} to run it back._`);
         } catch (err) {
           if (!err.friendly) throw err;
           return await m.reply.warn(err.message);
@@ -83,13 +86,14 @@ export default {
         }
         createChallenge(m.from, m.sender, target, amount);
         const challengerName = m.pushName || 'Challenger';
-        const targetNum = target.split('@')[0].split(':')[0];
+        const targetChip = await mentionChip(sock, target, m.from);
+        const targetNum = targetChip.label.slice(1);
         await sock.sendMessage(m.from, {
           text:
-            `⚔️ *A DUEL IS DECLARED!* ⚔️\n\n*${challengerName}* challenges @${targetNum} to a coin duel!\n` +
-            `🪙 Stakes: *${amount.toLocaleString()} coins* each\n\n@${targetNum}, the floor is yours —\n` +
+            `⚔️ *A DUEL IS DECLARED!* ⚔️\n\n*${challengerName}* challenges ${targetChip.label} to a coin duel!\n` +
+            `🪙 Stakes: *${amount.toLocaleString()} coins* each\n\n${targetChip.label}, the floor is yours —\n` +
             `✅ \`${p}duel accept\` — take the bet\n🏃 \`${p}duel decline\` — keep your coins\n\n_Opens 10 minutes. Winner takes the whole pot._`,
-          mentions: [target],
+          mentions: [targetChip.mentionJid],
         }, { quoted: m });
       } catch (err) {
         if (!err.friendly) throw err;

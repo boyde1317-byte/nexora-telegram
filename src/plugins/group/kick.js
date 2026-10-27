@@ -4,6 +4,7 @@
  * Upgraded: uses actionCard confirmation after removal with related
  * admin-action follow-up buttons.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { actionCard } from '../../lib/interactiveKit.js';
 import { config } from '../../../config/index.js';
@@ -37,7 +38,8 @@ export default {
       );
     }
 
-    const targetNumber = target.split('@')[0];
+    const targetId = await resolveDisplayIdentity(sock, target, m.from);
+    const targetNumber = targetId.number || '';
 
     if (target === sock.user.id.split(':')[0] + '@s.whatsapp.net') {
       return await m.reply.error('Nice try, but I won\'t kick myself.');
@@ -61,7 +63,7 @@ export default {
       // ── Tier 1: actionCard confirmation ────────────────────────────────
       try {
         return await actionCard(sock, m.from, {
-          text:   `🚫 *@${targetNumber}* has been shown the door. 👋`,
+          text:   `🚫 *${targetNumber ? '@' + targetNumber : targetId.label}* has been shown the door. 👋`,
           footer: 'NEXORA • Ejected',
         }, [
           { label: '⚠️ Warn a Member',        cmd: `${p}warn` },

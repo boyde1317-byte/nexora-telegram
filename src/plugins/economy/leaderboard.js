@@ -7,6 +7,7 @@
  * Removed follow-up actionCard to prevent double messages — users navigate
  * with `.lb <page>` or `.lb coins <page>` instead of tapping buttons.
  */
+import { resolveDisplayIdentity } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { richTableCard } from '../../lib/interactiveKit.js';
 import { asciiBuilder } from '../../ui/asciiBuilder.js';
@@ -62,7 +63,8 @@ export default {
       const startIdx = (page - 1) * PAGE_SIZE;
       const pageEntries = entries.slice(startIdx, startIdx + PAGE_SIZE);
 
-      const senderNum  = m.sender.split('@')[0].split(':')[0];
+      const senderId = await resolveDisplayIdentity(sock, m.sender, m.isGroup ? m.from : null);
+      const senderNum = senderId.number || m.sender.split('@')[0].split(':')[0];
       const senderRank = entries.findIndex(e => e.number === senderNum);
 
       // ── Tier 1: richTableCard — single message ────────────────────────

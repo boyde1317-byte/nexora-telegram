@@ -11,6 +11,7 @@
  *
  * Aliases: .vs, .statuslist, .fetchstatus
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { buildEnrichedContextInfo } from '../../lib/enrichContext.js';
 
@@ -56,8 +57,8 @@ export default {
 
           let text = '*Status Contacts*\n\n';
           for (const [jid, info] of contactList) {
-            const name = info?.name || info?.notify || jid.split('@')[0];
-            text += `• ${name}\n  ${jid}\n`;
+            const name = info?.name || info?.notify || (String(jid).endsWith('@lid') ? 'hidden account' : jid.split('@')[0]);
+            text += `• ${name}${String(jid).endsWith('@lid') ? '' : `\n  ${jid}`}\n`;
           }
           text += `\nUse \`${p}viewstatus @number\` to fetch status for a specific contact.`;
           await m.reply(text, { contextInfo: buildEnrichedContextInfo() });
@@ -71,7 +72,7 @@ export default {
 
           let text = '*Status Updates*\n\n';
           for (const entry of results) {
-            const name = entry?.name || entry?.jid?.split('@')[0] || 'Unknown';
+            const name = entry?.name || (String(entry?.jid || '').endsWith('@lid') ? 'hidden account' : entry?.jid?.split('@')[0]) || 'Unknown';
             const status = entry?.status || 'No status set';
             text += `*${name}*\n${status}\n\n`;
           }

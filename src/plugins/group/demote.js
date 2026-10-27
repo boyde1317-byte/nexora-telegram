@@ -4,6 +4,7 @@
  * Fixed: duplicate `const targetNumber` declaration was crashing the command.
  * Improved: better target resolution order.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
 import { actionCard } from '../../lib/interactiveKit.js';
 import { config } from '../../../config/index.js';
@@ -37,7 +38,8 @@ export default {
       );
     }
 
-    const targetNumber = target.split('@')[0];
+    const targetId = await resolveDisplayIdentity(sock, target, m.from);
+    const targetNumber = targetId.number || '';
 
     if (config.owner.includes(targetNumber)) {
       return await m.reply.error('Cannot modify the bot owner\'s admin status.');
@@ -48,7 +50,7 @@ export default {
 
       try {
         return await actionCard(sock, m.from, {
-          text:   `⬇️ *@${targetNumber}* is back to being a regular member. No more admin powers.`,
+          text:   `⬇️ *${targetNumber ? '@' + targetNumber : targetId.label}* is back to being a regular member. No more admin powers.`,
           footer: 'NEXORA • Demoted',
         }, [
           { label: '⬆️ Promote Again',     cmd: `${p}promote @${targetNumber}` },

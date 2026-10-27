@@ -22,6 +22,7 @@
  * Plans come from the same STORE_PLANS env the store card reads, so the
  * picker rows and the order validation can never drift apart.
  */
+import { resolveDisplayIdentity, mentionChip } from '../../lib/identity.js';
 import { Button } from '../../lib/moonsonKit.js';
 import { actionCard } from '../../lib/interactiveKit.js';
 import { fileOrder, listOrders, peekOrder, takeOrder, ORDER_TTL_LABEL } from '../../lib/orderStore.js';
@@ -99,7 +100,7 @@ async function sendOrderCard(order) {
   const body =
     `🛒 *NEW SERVER ORDER* — ${order.id}\n\n` +
     `Plan: *${order.plan}* (${order.price} GHS)\n` +
-    `Buyer: ${order.buyerName || 'unknown'} (${order.buyerJid.split('@')[0]})\n` +
+    `Buyer: ${order.buyerName || order.buyerPhone || 'unknown'}\n` +
     `${note}\n` +
     `Approve sends the buyer a confirmation with your payment link. Orders expire after ${ORDER_TTL_LABEL}.`;
   try {
@@ -164,7 +165,7 @@ export default {
       if (!all.length) return await m.reply.info('No pending orders.', 'ORDER QUEUE');
       return await m.reply(
         `🛒 *PENDING ORDERS*\n\n` +
-        all.map(o => `\`${p}orderapprove ${o.id}\` ← *${o.plan}* (${o.price} GHS) by ${o.buyerName || o.buyerJid.split('@')[0]}${o.note ? ` — _${o.note}_` : ''}`).join('\n')
+        all.map(o => `\`${p}orderapprove ${o.id}\` ← *${o.plan}* (${o.price} GHS) by ${o.buyerName || o.buyerPhone || 'unknown'}${o.note ? ` — _${o.note}_` : ''}`).join('\n')
       );
     }
 
@@ -200,11 +201,12 @@ export default {
     }
     const note = args.slice(1).join(' ').slice(0, 200) || null;
     const buyerJid = m.isGroup ? m.sender : m.from;
-    const buyerName = m.pushName || m.sender.split('@')[0];
+    const buyerId = await resolveDisplayIdentity(sock, m.sender, m.isGroup ? m.from : null);
+    const buyerName = m.pushName || (buyerId.number ? '+' + buyerId.number : buyerId.label);
 
     let order;
     try {
-      order = fileOrder({ plan: String(plan.ram), price: plan.price, note, buyerJid, buyerName, chatJid: m.from });
+      order = fileOrder({ plan: String(plan.ram), price: plan.price, note, buyerJid, buyerPhone: buyerId.number || null, buyerName, chatJid: m.from });
     } catch (err) {
       return await m.reply.warn(err.message);
     }
