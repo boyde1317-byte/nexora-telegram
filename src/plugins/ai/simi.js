@@ -61,7 +61,9 @@ export default {
           .join('\n')
           .trim();
         if (!reply) throw new Error('empty response');
-        await m.reply(reply);
+        // simi is a conversation — the forwarded channel pill (even the
+        // throttled one-per-30-min reply-pill) breaks the chat illusion here.
+        await m.reply(reply, { skipPill: true });
       } catch (err) {
         console.error('[simi]', err.message);
         await m.reply.error(`Simi is silent: ${err.message}`);
