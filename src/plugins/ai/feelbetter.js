@@ -7,14 +7,12 @@
  */
 import { feelBetter } from '../../lib/aiapis.js';
 import { withReactionStatus } from '../../lib/cosmetics.js';
+import { getHistory, pushTurn, forget } from '../../lib/chatMemory.js';
 
-/** Per-user conversation memory (feelbet-memory cookie id). */
-const memory = new Map();
-const memoryFor = (jid) => {
-  if (!memory.has(jid)) memory.set(jid, `nexora-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
-  return memory.get(jid);
-};
-const history = new Map();
+/** Healing thread key (persona-scoped). */
+const memKey = (jid) => `feelbetter:${jid}`;
+
+
 
 export default {
   name: 'feelbetter',
@@ -25,6 +23,11 @@ export default {
 
   execute: async ({ m, args, sender, prefix }) => {
     const p = prefix || '.';
+    const sub = args[0]?.toLowerCase();
+    if (sub === 'reset' || sub === 'clear') {
+      forget(memKey(sender));
+      return await m.reply.success('🧵 Session cleared. We can start over whenever you are ready. 💚');
+    }
     const text = args.join(' ').trim();
     if (!text) {
       return await m.reply.info(
@@ -34,14 +37,13 @@ export default {
     }
     await withReactionStatus(m, async () => {
       try {
-        const id = memoryFor(sender);
-        const convo = history.get(sender) || [];
+        const id = `nexora-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const key = memKey(sender);
+        const convo = getHistory(key).map((t) => ({ role: t.role, content: t.text }));
         convo.push({ role: 'user', content: text });
-        // Keep the last 8 turns for context
-        const trimmed = convo.slice(-8);
-        const reply = await feelBetter(trimmed, id);
-        trimmed.push({ role: 'assistant', content: reply });
-        history.set(sender, trimmed.slice(-8));
+        const reply = await feelBetter(convo, id);
+        pushTurn(key, 'user', text);
+        pushTurn(key, 'assistant', reply);
         await m.reply(reply);
       } catch (err) {
         console.error('[feelbetter]', err.message);
