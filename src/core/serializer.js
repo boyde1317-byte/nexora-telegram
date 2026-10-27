@@ -4,7 +4,7 @@ import { config } from '../../config/index.js';
 import { messageFormatter } from '../ui/messageFormatter.js';
 import { aiQuoted } from '../lib/aiQuote.js';
 import { db } from '../database/db.js';
-import { withReplyPill } from '../lib/menuContext.js';
+import { withChannelPill } from '../lib/menuContext.js';
 import { buildEnrichedContextInfo } from '../lib/enrichContext.js';
 import { asciiBuilder } from '../ui/asciiBuilder.js';
 
@@ -534,8 +534,11 @@ export async function serialize(rawMessage, sock) {
     // non-interactive replies too — same Yuzuki-style single message.
     // Callers can opt out with { skipPill: true }.
     if (!skipPill) {
-      // throttled: one pill per chat per PILL_TTL, not on every bubble
-      finalContextInfo = withReplyPill(message.from, finalContextInfo) ?? finalContextInfo;
+      try {
+        finalContextInfo = withChannelPill(finalContextInfo);
+      } catch (_) {
+        // pill helper failed — keep the reply alive
+      }
     }
 
     return await sock.sendMessage(
