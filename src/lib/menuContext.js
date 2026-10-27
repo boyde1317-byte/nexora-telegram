@@ -43,6 +43,12 @@ export function getChannelPill() {
   const name = (isChannelJid(s.channelId) ? s.channelName : null) || DEFAULT_CHANNEL_NAME;
   if (!isChannelJid(jid)) return null;
   return {
+    // forwardingScore + isForwarded make clients treat the message as a
+    // forward, which is what turns the newsletter info into the rendered
+    // " forwarded from <Channel> " header with the tappable "View channel"
+    // pill. Without them many clients ignore the newsletter block.
+    forwardingScore: 1,
+    isForwarded: true,
     forwardedNewsletterMessageInfo: {
       newsletterJid: jid,
       serverMessageId: 1,
