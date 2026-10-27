@@ -65,3 +65,33 @@ export function withChannelPill(contextInfo = {}) {
   const pill = getChannelPill();
   return pill ? { ...contextInfo, ...pill } : { ...contextInfo };
 }
+
+/**
+ * Per-chat throttle for the pill on SMALL replies. A pill on every single
+ * reply renders the whole "Forwarded → View channel" block on each
+ * bubble — spam. Menu cards / invite cards keep their pill (they call
+ * withChannelPill directly); ordinary command replies get one per chat
+ * per TTL, so the channel stays visible without shouting.
+ *   NEXORA_PILL_EVERY_MIN (default 30)
+ */
+const PILL_TTL = Math.max(1, parseInt(process.env.NEXORA_PILL_EVERY_MIN || '30', 10)) * 60_000;
+const lastPillAt = new Map();
+
+/** True when this chat is due for a reply-pill. */
+export function chatDueForPill(jid) {
+  if (!jid) return false;
+  const now = Date.now();
+  if (now - (lastPillAt.get(jid) || 0) < PILL_TTL) return false;
+  lastPillAt.set(jid, now);
+  return true;
+}
+
+/** Pill a small reply only when the chat is due. Returns contextInfo or undefined. */
+export function withReplyPill(jid, contextInfo = {}) {
+  try {
+    const merged = chatDueForPill(jid) ? withChannelPill(contextInfo) : { ...contextInfo };
+    return Object.keys(merged).length ? merged : undefined;
+  } catch (_) {
+    return Object.keys(contextInfo).length ? contextInfo : undefined;
+  }
+}
